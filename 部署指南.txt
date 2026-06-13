@@ -1,0 +1,75 @@
+# 赵元贞集网站部署指南
+
+## 网站文件结构
+```
+website/
+├── index.html          # 首页
+├── jinshangshilu.html  # 今上实录页面
+├── suibi.html          # 随笔页面
+├── style.css           # 样式文件
+└── giscus.js           # 评论系统配置
+```
+
+## 部署步骤
+
+### 第一步：创建GitHub仓库
+1. 登录 GitHub (github.com)
+2. 点击右上角 "+" -> "New repository"
+3. 仓库名填写：`你的用户名.github.io`（例如：`zhaoyuanzhen.github.io`）
+4. 选择 Public
+5. 点击 "Create repository"
+
+### 第二步：上传网站文件
+1. 在仓库页面点击 "uploading an existing file"
+2. 拖拽整个 website 文件夹中的所有文件到页面
+3. 点击 "Commit changes"
+
+### 第三步：启用GitHub Pages
+1. 进入仓库的 "Settings"
+2. 左侧菜单找到 "Pages"
+3. Source 选择 "Deploy from a branch"
+4. Branch 选择 "main"，文件夹选择 "/ (root)"
+5. 点击 "Save"
+
+### 第四步：配置自定义域名
+1. 在域名服务商处设置DNS解析
+2. 添加一条 CNAME 记录：
+   - 主机记录：@ 或 www
+   - 记录类型：CNAME
+   - 记录值：你的用户名.github.io
+3. 等待DNS生效（可能需要几分钟到几小时）
+
+### 第五步：配置评论系统（Giscus）
+1. 访问 https://giscus.app/
+2. 输入你的仓库信息
+3. 选择 "Announcements" 分类
+4. 复制生成的配置代码
+5. 打开 giscus.js 文件，替换配置信息
+
+### 第六步：测试网站
+1. 访问 https://你的用户名.github.io
+2. 检查页面是否正常显示
+3. 测试评论功能
+
+## 常见问题
+
+### Q: 网站打不开？
+A: 检查以下几点：
+- GitHub Pages 是否已启用
+- DNS 解析是否正确
+- 等待几分钟后刷新
+
+### Q: 评论不显示？
+A: 检查：
+- GitHub 仓库是否启用了 Discussions
+- Giscus App 是否已安装
+- 配置信息是否正确
+
+### Q: 如何更新网站？
+A: 直接在 GitHub 仓库中编辑文件，保存后会自动更新
+
+## 费用说明
+- 域名：约 10-70元/年
+- 托管：免费
+- 评论：免费
+- 总计：仅域名费用
