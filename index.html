@@ -418,7 +418,7 @@ footer .footer-links a:hover { color:var(--gold); }
     <div class="article-body" id="articleBody"></div>
     <div class="comments-section">
       <h3>评论区</h3>
-      <div id="giscus-container"></div>
+      <div id="cusdis_thread"></div>
     </div>
   </div>
 </section>
@@ -600,37 +600,39 @@ function showArticle(bookName, idx) {
     bodyEl.appendChild(p);
   });
 
-  initGiscus(bookName, idx);
+  initCusdis(bookName, idx);
   document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
 }
 
-// ===== GISCUS =====
-let giscusLoaded = false;
-function initGiscus(bookName, idx) {
-  const container = document.getElementById('giscus-container');
-  container.innerHTML = '';
+// ===== CUSDIS =====
+function initCusdis(bookName, idx) {
+  const container = document.getElementById('cusdis_thread');
+  if (!container) return;
 
-  // Use a unique identifier per article
-  const id = `${bookName}-${idx}`;
+  const pageId = `${bookName}-${idx}`;
+  const pageTitle = document.getElementById('articleTitle')?.textContent || '';
+  const pageUrl = window.location.href.split('?')[0] + '#' + pageId;
 
-  const script = document.createElement('script');
-  script.src = 'https://giscus.app/client.js';
-  script.setAttribute('data-repo', '999qw/13332');
-  script.setAttribute('data-repo-id', 'R_kgDOS4H4ew');
-  script.setAttribute('data-category', 'Announcements');
-  script.setAttribute('data-category-id', 'DIC_kwDOS4H4e84C-_Nk');
-  script.setAttribute('data-mapping', 'specific');
-  script.setAttribute('data-term', id);
-  script.setAttribute('data-strict', '0');
-  script.setAttribute('data-reactions-enabled', '1');
-  script.setAttribute('data-emit-metadata', '0');
-  script.setAttribute('data-input-position', 'bottom');
-  script.setAttribute('data-theme', 'dark');
-  script.setAttribute('data-lang', 'zh-CN');
-  script.crossOrigin = 'anonymous';
-  script.async = true;
-  container.appendChild(script);
-  giscusLoaded = true;
+  // Cusdis re-renders on data changes — set attributes then re-mount
+  container.setAttribute('data-host', 'https://cusdis.com');
+  container.setAttribute('data-app-id', '2392e3c4-004c-46f3-8b25-75cca2d78d25');
+  container.setAttribute('data-page-id', pageId);
+  container.setAttribute('data-page-url', pageUrl);
+  container.setAttribute('data-page-title', pageTitle);
+  container.setAttribute('data-theme', 'dark');
+
+  // Trigger Cusdis re-render
+  if (window.CUSDIS && typeof window.CUSDIS.render === 'function') {
+    window.CUSDIS.render();
+  } else {
+    // First load — inject the widget script
+    container.innerHTML = '';
+    const script = document.createElement('script');
+    script.src = 'https://cusdis.com/js/cusdis.es.js';
+    script.async = true;
+    script.defer = true;
+    container.appendChild(script);
+  }
 }
 
 // ===== QUOTES: HERO =====
