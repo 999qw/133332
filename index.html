@@ -206,7 +206,15 @@ section { padding:100px var(--side-pad); }
 .reading-area.active { display:block; }
 
 /* Article list */
-.article-list-section { padding:80px var(--side-pad); }
+.article-list-section {
+  padding:80px var(--side-pad);
+  opacity:1; transform:translateY(0);
+  transition:opacity 0.35s ease, transform 0.35s ease;
+}
+.article-list-section.fade-out {
+  opacity:0; transform:translateY(-12px);
+  pointer-events:none;
+}
 .article-list-header {
   display:flex; align-items:baseline; justify-content:space-between;
   margin-bottom:40px; max-width:900px; margin-left:auto; margin-right:auto;
@@ -243,6 +251,12 @@ section { padding:100px var(--side-pad); }
 /* Article reading */
 .article-view {
   max-width:720px; margin:0 auto; padding:60px var(--side-pad) 80px;
+  opacity:1; transform:translateY(0);
+  transition:opacity 0.35s ease, transform 0.35s ease;
+}
+.article-view.fade-out {
+  opacity:0; transform:translateY(12px);
+  pointer-events:none;
 }
 .article-view .article-back {
   display:inline-block;
@@ -551,8 +565,29 @@ function closeBook() {
 }
 
 function showList() {
-  document.getElementById('articleList').style.display = 'block';
-  document.getElementById('articleView').style.display = 'none';
+  const av = document.getElementById('articleView');
+  const al = document.getElementById('articleList');
+  
+  // 文章视图淡出
+  av.classList.add('fade-out');
+  
+  // 等待淡出动画完成后切换显示
+  setTimeout(() => {
+    av.style.display = 'none';
+    al.style.display = 'block';
+    
+    // 列表淡入
+    al.classList.remove('fade-out');
+    void al.offsetWidth;
+    al.style.opacity = '1';
+    
+    // 恢复之前保存的滚动位置
+    if (window.__listScrollY !== undefined) {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: window.__listScrollY, behavior: 'smooth' });
+      });
+    }
+  }, 300); // 匹配 CSS transition 时长
 }
 
 // ===== ARTICLE VIEW =====
@@ -566,10 +601,23 @@ function showArticle(bookName, idx) {
   if (!items || !items[idx]) return;
 
   const item = items[idx];
-  document.getElementById('articleList').style.display = 'none';
-  document.getElementById('articleView').style.display = 'block';
+  const av = document.getElementById('articleView');
+  const al = document.getElementById('articleList');
+  
+  // 列表淡出
+  al.classList.add('fade-out');
+  
+  // 等列表淡出后再切换 + 文章淡入
+  setTimeout(() => {
+    al.style.display = 'none';
+    av.style.display = 'block';
 
-  let title = item.title || '标题';
+    // 从透明开始，触发淡入动画
+    av.style.opacity = '0';
+    av.style.transform = 'translateY(12px)';
+    av.classList.remove('fade-out');
+
+    let title = item.title || '标题';
   let raw = item.content || '';
 
   // Fix Issue 1: title contains full article content (PDF parsing artifact)
@@ -638,7 +686,18 @@ function showArticle(bookName, idx) {
   });
 
   initComments(bookName, idx);
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
+  
+    // 触发淡入动画
+    void av.offsetWidth;
+    av.style.opacity = '1';
+    av.style.transform = 'translateY(0)';
+    
+    // 保存滚动位置，供返回列表时恢复
+    window.__listScrollY = window.scrollY;
+    
+    // 滚动到文章标题（而非到底部评论区）
+    document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 300);
 }
 
 // ===== GITALK COMMENTS =====
