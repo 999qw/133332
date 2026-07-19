@@ -208,22 +208,6 @@ section { padding:100px var(--side-pad); }
 
 /* Article list */
 .article-list-section { padding:80px var(--side-pad); }
-.article-list-section,
-.article-view {
-  opacity:1;
-  transform:translateY(0);
-  transition:opacity 0.35s ease, transform 0.35s ease;
-}
-.article-list-section.fade-out {
-  opacity:0;
-  transform:translateY(-12px);
-  pointer-events:none;
-}
-.article-view.fade-out {
-  opacity:0;
-  transform:translateY(12px);
-  pointer-events:none;
-}
 .article-list-header {
   display:flex; align-items:baseline; justify-content:space-between;
   margin-bottom:40px; max-width:900px; margin-left:auto; margin-right:auto;
@@ -512,14 +496,13 @@ let gitalkInstance = null;
 let currentBook = '';
 let currentIdx = 0;
 let listScrollY = 0;
-const VIEW_TRANSITION_MS = 320;
 
 const GITALK_CONFIG = {
   owner: '999qw',
-  repo: '13332',
+  repo: '133332',
   admin: ['999qw'],
-  clientID: 'Ov23liTqRAs3FYfH1wUT',
-  clientSecret: '7a65b13c4d600cc7a9778abf351ef5fdb96b5b7f'
+  clientID: 'Ov23li2t0ClbQZ1r4ppz',
+  clientSecret: '7a6515d0725b89737756f9090dabb6cc6d681223'
 };
 
 function escapeHtml(str) {
@@ -576,8 +559,6 @@ function openBook(bookName) {
 
   document.getElementById('listTitle').textContent = bookName;
   const listEl = document.getElementById('articleListItems');
-  const articleList = document.getElementById('articleList');
-  const articleView = document.getElementById('articleView');
   listEl.innerHTML = '';
 
   items.forEach((item, idx) => {
@@ -599,13 +580,8 @@ function openBook(bookName) {
   });
 
   document.getElementById('reading').classList.add('active');
-  articleList.classList.remove('fade-out');
-  articleView.classList.remove('fade-out');
-  articleList.style.display = 'block';
-  articleList.style.opacity = '1';
-  articleList.style.transform = 'translateY(0)';
-  articleView.style.display = 'none';
-
+  document.getElementById('articleList').style.display = 'block';
+  document.getElementById('articleView').style.display = 'none';
   document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -615,23 +591,11 @@ function closeBook() {
 }
 
 function showList() {
-  const listEl = document.getElementById('articleList');
-  const viewEl = document.getElementById('articleView');
-  viewEl.classList.add('fade-out');
-  setTimeout(() => {
-    viewEl.style.display = 'none';
-    viewEl.classList.remove('fade-out');
-    listEl.style.display = 'block';
-    listEl.classList.remove('fade-out');
-    listEl.style.opacity = '0';
-    listEl.style.transform = 'translateY(-12px)';
-    void listEl.offsetWidth;
-    listEl.style.opacity = '1';
-    listEl.style.transform = 'translateY(0)';
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: listScrollY, behavior: 'smooth' });
-    });
-  }, VIEW_TRANSITION_MS);
+  document.getElementById('articleList').style.display = 'block';
+  document.getElementById('articleView').style.display = 'none';
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: listScrollY, behavior: 'smooth' });
+  });
 }
 
 // ===== ARTICLE VIEW =====
@@ -642,8 +606,6 @@ function showArticle(bookName, idx) {
   if (!items || !items[idx]) return;
 
   const item = items[idx];
-  const listEl = document.getElementById('articleList');
-  const viewEl = document.getElementById('articleView');
   listScrollY = window.scrollY;
 
   let title = item.title || '标题';
@@ -698,20 +660,10 @@ function showArticle(bookName, idx) {
     bodyEl.appendChild(p);
   });
 
-  listEl.classList.add('fade-out');
-  setTimeout(() => {
-    listEl.style.display = 'none';
-    listEl.classList.remove('fade-out');
-    viewEl.style.display = 'block';
-    viewEl.classList.remove('fade-out');
-    viewEl.style.opacity = '0';
-    viewEl.style.transform = 'translateY(12px)';
-    void viewEl.offsetWidth;
-    viewEl.style.opacity = '1';
-    viewEl.style.transform = 'translateY(0)';
-    initComments(bookName, idx);
-    document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, VIEW_TRANSITION_MS);
+  document.getElementById('articleList').style.display = 'none';
+  document.getElementById('articleView').style.display = 'block';
+  initComments(bookName, idx);
+  document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ===== GITALK COMMENTS =====
