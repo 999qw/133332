@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="gitalk.css">
 <script src="data-jinshang.js" defer></script>
 <script src="data-suibi.js" defer></script>
+<script src="gitalk.min.js" defer></script>
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -206,13 +207,21 @@ section { padding:100px var(--side-pad); }
 .reading-area.active { display:block; }
 
 /* Article list */
-.article-list-section {
-  padding:80px var(--side-pad);
-  opacity:1; transform:translateY(0);
+.article-list-section { padding:80px var(--side-pad); }
+.article-list-section,
+.article-view {
+  opacity:1;
+  transform:translateY(0);
   transition:opacity 0.35s ease, transform 0.35s ease;
 }
 .article-list-section.fade-out {
-  opacity:0; transform:translateY(-12px);
+  opacity:0;
+  transform:translateY(-12px);
+  pointer-events:none;
+}
+.article-view.fade-out {
+  opacity:0;
+  transform:translateY(12px);
   pointer-events:none;
 }
 .article-list-header {
@@ -251,12 +260,6 @@ section { padding:100px var(--side-pad); }
 /* Article reading */
 .article-view {
   max-width:720px; margin:0 auto; padding:60px var(--side-pad) 80px;
-  opacity:1; transform:translateY(0);
-  transition:opacity 0.35s ease, transform 0.35s ease;
-}
-.article-view.fade-out {
-  opacity:0; transform:translateY(12px);
-  pointer-events:none;
 }
 .article-view .article-back {
   display:inline-block;
@@ -295,17 +298,19 @@ section { padding:100px var(--side-pad); }
   font-size:1em; font-family:var(--font-sans);
   color:var(--gold-dim); margin-bottom:16px; letter-spacing:0.1em;
 }
-/* Gitalk 主题适配 */
-.gitalk-wrapper { position:relative; }
-.gt-container { color:var(--paper); }
-.gt-container .gt-meta { border-color:var(--border-dim); }
+.comment-empty {
+  font-family:var(--font-sans); font-size:0.82rem;
+  color:var(--gold-dim); text-align:center; padding:24px 0;
+}
+#gitalk-container { min-height:120px; }
+.gt-container { color:var(--paper) !important; }
+.gt-container .gt-meta { border-color:var(--border-dim) !important; }
+.gt-container .gt-comments-null { color:var(--gold-dim) !important; }
 .gt-container .gt-header-textarea {
   background:var(--ink-light) !important;
   border-color:var(--border-dim) !important;
   color:var(--paper) !important;
 }
-.gt-container .gt-header-preview { color:var(--paper) !important; }
-.gt-container .gt-btn-preview { color:var(--gold-dim) !important; }
 .gt-container .gt-btn-public {
   background:var(--gold-dim) !important;
   border-color:var(--gold-dim) !important;
@@ -317,19 +322,37 @@ section { padding:100px var(--side-pad); }
   border-color:var(--border-dim) !important;
   box-shadow:none !important;
 }
-.gt-container .gt-comment-content:hover { box-shadow:none !important; }
-.gt-container .gt-comment-body { color:var(--paper) !important; }
-.gt-container .gt-comment-date { color:var(--gold-dim) !important; }
-.gt-container .gt-user-name { color:var(--gold) !important; }
-.gt-container .gt-link { color:var(--gold-dim) !important; }
-.gt-container .gt-link:hover { color:var(--gold) !important; }
-.gt-container .gt-svg svg { fill:var(--gold-dim); }
-.gt-container .gt-header-controls-tip { color:var(--gold-dim) !important; }
-.gt-container .gt-popup { background:var(--ink-light) !important; border-color:var(--border-dim) !important; }
-.gt-container .gt-counts { color:var(--paper-dim) !important; }
-.gt-container .gt-comment-admin .gt-comment-content { background:rgba(201,169,110,0.08) !important; }
-.gt-container .gt-ico-text { color:var(--paper-dim) !important; }
-.gt-container .gt-loader { border-color:var(--border-dim) !important; border-top-color:var(--gold) !important; }
+.gt-container .gt-comment-body,
+.gt-container .gt-header-preview,
+.gt-container .gt-popup,
+.gt-container .gt-user-inner,
+.gt-container .gt-version {
+  color:var(--paper) !important;
+}
+.gt-container .gt-comment-date,
+.gt-container .gt-action,
+.gt-container .gt-version a {
+  color:var(--gold-dim) !important;
+}
+.gt-container .gt-svg svg {
+  fill:var(--gold-dim) !important;
+}
+.gt-container .gt-user-name,
+.gt-container .gt-link {
+  color:var(--gold) !important;
+}
+.gt-container .gt-link:hover { color:var(--gold-light) !important; }
+.gt-container .gt-popup {
+  background:var(--ink-light) !important;
+  border-color:var(--border-dim) !important;
+}
+.gt-container .gt-comment-admin .gt-comment-content {
+  background:rgba(201,169,110,0.08) !important;
+}
+.gt-container .gt-loader {
+  border-color:var(--border-dim) !important;
+  border-top-color:var(--gold) !important;
+}
 
 /* ===== Footer ===== */
 footer {
@@ -455,19 +478,19 @@ footer .footer-links a:hover { color:var(--gold); }
   <div id="articleList" class="article-list-section">
     <div class="article-list-header">
       <h2 id="listTitle">文集</h2>
-      <button class="back-btn" onclick="closeBook()">← 归卷目</button>
+      <button class="back-btn" onclick="closeBook()">← 返回卷目</button>
     </div>
     <div class="article-list" id="articleListItems"></div>
   </div>
 
   <!-- Article View (shown when an article is selected) -->
   <div id="articleView" class="article-view" style="display:none;">
-    <button class="article-back" onclick="showList()">← 归卷目</button>
+    <button class="article-back" onclick="showList()">← 返回目录</button>
     <h2 id="articleTitle"></h2>
     <div class="article-meta" id="articleMeta"></div>
     <div class="article-body" id="articleBody"></div>
     <div class="comments-section">
-      <h3>论说</h3>
+      <h3>评论区</h3>
       <div id="gitalk-container"></div>
     </div>
   </div>
@@ -476,16 +499,28 @@ footer .footer-links a:hover { color:var(--gold); }
 <!-- ===== Footer ===== -->
 <footer class="reveal">
   <div class="footer-links">
-    <a href="#top">归首页</a>
+    <a href="#top">返回首页</a>
     <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
   </div>
 </footer>
 
 <!-- ===== JS ===== -->
-<script src="gitalk.min.js"></script>
 <script>
 // ===== DATA LAYER =====
 let allData = {};
+let gitalkInstance = null;
+let currentBook = '';
+let currentIdx = 0;
+let listScrollY = 0;
+const VIEW_TRANSITION_MS = 320;
+
+const GITALK_CONFIG = {
+  owner: '999qw',
+  repo: '13332',
+  admin: ['999qw'],
+  clientID: 'Ov23liTqRAs3FYfH1wUT',
+  clientSecret: '7a65b13c4d600cc7a9778abf351ef5fdb96b5b7f'
+};
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -493,11 +528,11 @@ function escapeHtml(str) {
   d.textContent = str;
   return d.innerHTML;
 }
+
 function initData() {
   const jinshangData = window.JINSHANG_DATA || {};
   const suibiData = window.SUIBI_DATA || {};
 
-  // Parse 今上实录: keys are section names, values are arrays of articles
   const jinshangFlat = [];
   for (const [section, articles] of Object.entries(jinshangData)) {
     if (Array.isArray(articles)) {
@@ -506,9 +541,22 @@ function initData() {
   }
   allData['今上实录'] = jinshangFlat;
 
-  // Parse 随笔 & 未分类 from suibi.js (keys: "随笔", "未分类")
-  allData['随笔'] = suibiData['随笔'] || [];
-  allData['未分类'] = suibiData['未分类'] || [];
+  let suibiList = [];
+  let weifenleiList = [];
+  if (Array.isArray(suibiData['随笔']) && Array.isArray(suibiData['未分类'])) {
+    suibiList = suibiData['随笔'];
+    weifenleiList = suibiData['未分类'];
+  } else {
+    for (const [, arr] of Object.entries(suibiData)) {
+      if (!Array.isArray(arr)) continue;
+      arr.forEach(a => {
+        if (a && a.id && String(a.id).startsWith('未分类')) weifenleiList.push(a);
+        else suibiList.push(a);
+      });
+    }
+  }
+  allData['随笔'] = suibiList;
+  allData['未分类'] = weifenleiList;
 
   console.log('Data loaded:', {
     今上实录: jinshangFlat.length,
@@ -528,16 +576,16 @@ function openBook(bookName) {
 
   document.getElementById('listTitle').textContent = bookName;
   const listEl = document.getElementById('articleListItems');
+  const articleList = document.getElementById('articleList');
+  const articleView = document.getElementById('articleView');
   listEl.innerHTML = '';
 
   items.forEach((item, idx) => {
     const div = document.createElement('div');
     div.className = 'article-list-item';
-    // Truncate overly long titles (PDF parsing artifact)
     let displayTitle = item.title || '标题';
     const MAX_TITLE = 60;
     if (displayTitle.length > MAX_TITLE) {
-      // Extract just the date/prefix part
       const m = displayTitle.match(/^(标题\s+\d{4}\s*年.*?字\s+)/);
       if (m) displayTitle = m[1] + '…';
       else displayTitle = displayTitle.substring(0, MAX_TITLE) + '…';
@@ -550,12 +598,14 @@ function openBook(bookName) {
     listEl.appendChild(div);
   });
 
-  // Show reading area
   document.getElementById('reading').classList.add('active');
-  document.getElementById('articleList').style.display = 'block';
-  document.getElementById('articleView').style.display = 'none';
+  articleList.classList.remove('fade-out');
+  articleView.classList.remove('fade-out');
+  articleList.style.display = 'block';
+  articleList.style.opacity = '1';
+  articleList.style.transform = 'translateY(0)';
+  articleView.style.display = 'none';
 
-  // Scroll to reading section
   document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -565,35 +615,26 @@ function closeBook() {
 }
 
 function showList() {
-  const av = document.getElementById('articleView');
-  const al = document.getElementById('articleList');
-  
-  // 文章视图淡出
-  av.classList.add('fade-out');
-  
-  // 等待淡出动画完成后切换显示
+  const listEl = document.getElementById('articleList');
+  const viewEl = document.getElementById('articleView');
+  viewEl.classList.add('fade-out');
   setTimeout(() => {
-    av.style.display = 'none';
-    al.style.display = 'block';
-    
-    // 列表淡入
-    al.classList.remove('fade-out');
-    void al.offsetWidth;
-    al.style.opacity = '1';
-    
-    // 恢复之前保存的滚动位置
-    if (window.__listScrollY !== undefined) {
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: window.__listScrollY, behavior: 'smooth' });
-      });
-    }
-  }, 300); // 匹配 CSS transition 时长
+    viewEl.style.display = 'none';
+    viewEl.classList.remove('fade-out');
+    listEl.style.display = 'block';
+    listEl.classList.remove('fade-out');
+    listEl.style.opacity = '0';
+    listEl.style.transform = 'translateY(-12px)';
+    void listEl.offsetWidth;
+    listEl.style.opacity = '1';
+    listEl.style.transform = 'translateY(0)';
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listScrollY, behavior: 'smooth' });
+    });
+  }, VIEW_TRANSITION_MS);
 }
 
 // ===== ARTICLE VIEW =====
-let currentBook = '';
-let currentIdx = 0;
-
 function showArticle(bookName, idx) {
   currentBook = bookName;
   currentIdx = idx;
@@ -601,63 +642,40 @@ function showArticle(bookName, idx) {
   if (!items || !items[idx]) return;
 
   const item = items[idx];
-  const av = document.getElementById('articleView');
-  const al = document.getElementById('articleList');
-  
-  // 列表淡出
-  al.classList.add('fade-out');
-  
-  // 等列表淡出后再切换 + 文章淡入
-  setTimeout(() => {
-    al.style.display = 'none';
-    av.style.display = 'block';
+  const listEl = document.getElementById('articleList');
+  const viewEl = document.getElementById('articleView');
+  listScrollY = window.scrollY;
 
-    // 从透明开始，触发淡入动画
-    av.style.opacity = '0';
-    av.style.transform = 'translateY(12px)';
-    av.classList.remove('fade-out');
-
-    let title = item.title || '标题';
+  let title = item.title || '标题';
   let raw = item.content || '';
 
-  // Fix Issue 1: title contains full article content (PDF parsing artifact)
   const HAS_EMBEDDED_CONTENT = title.length > 80 && raw.length > 0;
   if (HAS_EMBEDDED_CONTENT) {
-    // If title is extremely long and content also exists, the title likely
-    // stole content meant for a different article. Use the date-prefix as title.
     const m = title.match(/^(标题\s+\d{4}\s*年[^|]+\|\s*\d+字\s+)/);
     if (m) {
       raw = title.replace(m[1], '').trim() + '\n\n' + raw;
       title = m[1].trim();
     } else {
-      // Just use first part as title
       raw = title + '\n\n' + raw;
       title = title.substring(0, 40) + '…';
     }
   }
 
-  // Fix Issue 3: clean stray PDF page numbers at line starts
   raw = raw.replace(/\n(\d+)\s/g, '\n');
-
-  // Clean date remnants at start of content (from PDF line-break extraction)
   raw = raw.replace(/^[\d\s\n]*?(?:年\d*)?(?:月\d*)?(?:日\s*[\d:]+\s*\|?\s*\d*\s*字?)\s*/m, '').trim();
-  // Also clean multi-line date prefix pattern
   raw = raw.replace(/^\d{4}\s*\n\s*年\d*\s*\n?\s*月\d*\s*\n?\s*日[^\n]*\n?/, '').trim();
 
   document.getElementById('articleTitle').textContent = title;
   document.getElementById('articleMeta').textContent = item.date || '';
 
-  // Parse content
   const bodyEl = document.getElementById('articleBody');
   bodyEl.innerHTML = '';
 
-  // Split by || for annotations, then by \n\n for paragraphs
   const blocks = raw.split('\n\n');
   blocks.forEach((block, bi) => {
     block = block.trim();
     if (!block) return;
-    
-    // Check if this is an annotation
+
     if (block.startsWith('||')) {
       const ann = document.createElement('p');
       ann.className = 'annotation';
@@ -665,67 +683,60 @@ function showArticle(bookName, idx) {
       bodyEl.appendChild(ann);
       return;
     }
-    
-    // Check if this is the LAST block and might be a stray title
+
     const isLastBlock = (bi === blocks.length - 1);
-    if (isLastBlock && block.length < 10 && 
+    if (isLastBlock && block.length < 10 &&
         !block.endsWith('。') && !block.endsWith('？') && !block.endsWith('！') &&
         !block.endsWith('）') && !block.endsWith('」') && !block.endsWith('》') &&
         block.length > 1) {
-      // Check if the previous block is also short (poetry pattern) - keep it
-      const prevBlock = bi > 0 ? blocks[bi-1].trim() : '';
-      if (prevBlock && prevBlock.length >= 10) {
-        // Previous block is long prose, this short line is likely a stray title
-        return; // skip rendering this block
-      }
+      const prevBlock = bi > 0 ? blocks[bi - 1].trim() : '';
+      if (prevBlock && prevBlock.length >= 10) return;
     }
-    
+
     const p = document.createElement('p');
     p.textContent = block;
     bodyEl.appendChild(p);
   });
 
-  initComments(bookName, idx);
-  
-    // 触发淡入动画
-    void av.offsetWidth;
-    av.style.opacity = '1';
-    av.style.transform = 'translateY(0)';
-    
-    // 保存滚动位置，供返回列表时恢复
-    window.__listScrollY = window.scrollY;
-    
-    // 滚动到文章标题（而非到底部评论区）
+  listEl.classList.add('fade-out');
+  setTimeout(() => {
+    listEl.style.display = 'none';
+    listEl.classList.remove('fade-out');
+    viewEl.style.display = 'block';
+    viewEl.classList.remove('fade-out');
+    viewEl.style.opacity = '0';
+    viewEl.style.transform = 'translateY(12px)';
+    void viewEl.offsetWidth;
+    viewEl.style.opacity = '1';
+    viewEl.style.transform = 'translateY(0)';
+    initComments(bookName, idx);
     document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 300);
+  }, VIEW_TRANSITION_MS);
 }
 
 // ===== GITALK COMMENTS =====
-let gitalkInstance = null;
-
 function initComments(bookName, idx) {
   const container = document.getElementById('gitalk-container');
   if (!container) return;
-  
-  // Clean up old instance (for SPA navigation)
   container.innerHTML = '';
-  if (gitalkInstance) {
-    try { gitalkInstance = null; } catch(e) {}
+  gitalkInstance = null;
+
+  if (typeof Gitalk !== 'function') {
+    container.innerHTML = '<div class="comment-empty">评论组件加载失败，请稍后再试</div>';
+    return;
   }
-  
-  const id = `${bookName}-${idx}`;
-  
+
   gitalkInstance = new Gitalk({
-    clientID: 'Ov23li2t0ClbQZ1r4ppz',
-    clientSecret: '7a6515d0725b89737756f9090dabb6cc6d681223',
-    repo: '133332',
-    owner: '999qw',
-    admin: ['999qw'],
-    id: id,
+    clientID: GITALK_CONFIG.clientID,
+    clientSecret: GITALK_CONFIG.clientSecret,
+    repo: GITALK_CONFIG.repo,
+    owner: GITALK_CONFIG.owner,
+    admin: GITALK_CONFIG.admin,
+    id: `${bookName}-${idx}`,
     labels: ['comments'],
     createIssueManually: false,
+    distractionFreeMode: false
   });
-  
   gitalkInstance.render('gitalk-container');
 }
 
