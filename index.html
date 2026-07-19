@@ -491,7 +491,8 @@ footer .footer-links a:hover { color:var(--gold); }
 <!-- ===== JS ===== -->
 <script>
 // ===== DATA LAYER =====
-let allData = {};
+window.allData = {};
+let allData = window.allData;
 let gitalkInstance = null;
 let currentBook = '';
 let currentIdx = 0;
@@ -540,6 +541,7 @@ function initData() {
   }
   allData['随笔'] = suibiList;
   allData['未分类'] = weifenleiList;
+  window.allData = allData;
 
   console.log('Data loaded:', {
     今上实录: jinshangFlat.length,
