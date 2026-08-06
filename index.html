@@ -6,10 +6,8 @@
 <title>赵元贞集</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700;900&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gitalk.css">
 <script src="data-jinshang.js" defer></script>
 <script src="data-suibi.js" defer></script>
-<script src="gitalk.min.js" defer></script>
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -282,60 +280,54 @@ section { padding:100px var(--side-pad); }
   font-size:1em; font-family:var(--font-sans);
   color:var(--gold-dim); margin-bottom:16px; letter-spacing:0.1em;
 }
+/* Comment form */
+.comment-form { margin-bottom:24px; }
+.comment-form input, .comment-form textarea {
+  display:block; width:100%;
+  background:var(--ink-light); border:1px solid var(--border-dim);
+  color:var(--paper); padding:10px 14px;
+  font-family:var(--font-serif); font-size:0.95em;
+  margin-bottom:10px; border-radius:0;
+  outline:none; transition:border-color 0.25s;
+}
+.comment-form input:focus, .comment-form textarea:focus {
+  border-color:var(--gold-dim);
+}
+.comment-form textarea { resize:vertical; min-height:80px; }
+.comment-form .form-row { display:flex; gap:10px; }
+.comment-form .form-row input { flex:1; }
+.comment-form .submit-btn {
+  background:transparent; border:1px solid var(--gold-dim);
+  color:var(--gold); padding:10px 28px; cursor:pointer;
+  font-family:var(--font-sans); font-size:0.82rem; font-weight:700;
+  letter-spacing:0.08em; text-transform:uppercase;
+  transition:all 0.25s;
+}
+.comment-form .submit-btn:hover { background:var(--gold); color:var(--ink); }
+.comment-form .submit-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.comment-form .form-status {
+  font-family:var(--font-sans); font-size:0.78rem;
+  margin-top:8px; min-height:1.2em;
+}
+.comment-item {
+  padding:12px 0; border-bottom:1px solid var(--border-dim);
+}
+.comment-item:last-child { border-bottom:none; }
+.comment-item .comment-author {
+  font-family:var(--font-sans); font-size:0.78rem;
+  color:var(--gold); font-weight:700;
+}
+.comment-item .comment-date {
+  font-family:var(--font-sans); font-size:0.7rem;
+  color:var(--gold-dim); margin-left:8px;
+}
+.comment-item .comment-body {
+  font-size:0.95em; color:var(--paper); line-height:1.7;
+  margin-top:4px;
+}
 .comment-empty {
   font-family:var(--font-sans); font-size:0.82rem;
   color:var(--gold-dim); text-align:center; padding:24px 0;
-}
-#gitalk-container { min-height:120px; }
-.gt-container { color:var(--paper) !important; }
-.gt-container .gt-meta { border-color:var(--border-dim) !important; }
-.gt-container .gt-comments-null { color:var(--gold-dim) !important; }
-.gt-container .gt-header-textarea {
-  background:var(--ink-light) !important;
-  border-color:var(--border-dim) !important;
-  color:var(--paper) !important;
-}
-.gt-container .gt-btn-public {
-  background:var(--gold-dim) !important;
-  border-color:var(--gold-dim) !important;
-  color:var(--ink) !important;
-}
-.gt-container .gt-btn-public:hover { background:var(--gold) !important; }
-.gt-container .gt-comment-content {
-  background:var(--ink-light) !important;
-  border-color:var(--border-dim) !important;
-  box-shadow:none !important;
-}
-.gt-container .gt-comment-body,
-.gt-container .gt-header-preview,
-.gt-container .gt-popup,
-.gt-container .gt-user-inner,
-.gt-container .gt-version {
-  color:var(--paper) !important;
-}
-.gt-container .gt-comment-date,
-.gt-container .gt-action,
-.gt-container .gt-version a {
-  color:var(--gold-dim) !important;
-}
-.gt-container .gt-svg svg {
-  fill:var(--gold-dim) !important;
-}
-.gt-container .gt-user-name,
-.gt-container .gt-link {
-  color:var(--gold) !important;
-}
-.gt-container .gt-link:hover { color:var(--gold-light) !important; }
-.gt-container .gt-popup {
-  background:var(--ink-light) !important;
-  border-color:var(--border-dim) !important;
-}
-.gt-container .gt-comment-admin .gt-comment-content {
-  background:rgba(201,169,110,0.08) !important;
-}
-.gt-container .gt-loader {
-  border-color:var(--border-dim) !important;
-  border-top-color:var(--gold) !important;
 }
 
 /* ===== Footer ===== */
@@ -475,7 +467,17 @@ footer .footer-links a:hover { color:var(--gold); }
     <div class="article-body" id="articleBody"></div>
     <div class="comments-section">
       <h3>评论区</h3>
-      <div id="gitalk-container"></div>
+      <div id="comment-area">
+        <div class="comment-form">
+          <div class="form-row">
+            <input type="text" id="commentName" placeholder="你的昵称" maxlength="20">
+          </div>
+          <textarea id="commentText" placeholder="写下你的想法……"></textarea>
+          <button class="submit-btn" id="commentSubmit" onclick="postComment()">发表评论</button>
+          <div class="form-status" id="commentStatus"></div>
+        </div>
+        <div id="commentList"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -491,20 +493,7 @@ footer .footer-links a:hover { color:var(--gold); }
 <!-- ===== JS ===== -->
 <script>
 // ===== DATA LAYER =====
-window.allData = {};
-let allData = window.allData;
-let gitalkInstance = null;
-let currentBook = '';
-let currentIdx = 0;
-let listScrollY = 0;
-
-const GITALK_CONFIG = {
-  owner: '999qw',
-  repo: '133332',
-  admin: ['999qw'],
-  clientID: 'Ov23li2t0ClbQZ1r4ppz',
-  clientSecret: '7a6515d0725b89737756f9090dabb6cc6d681223'
-};
+let allData = {};
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -512,11 +501,11 @@ function escapeHtml(str) {
   d.textContent = str;
   return d.innerHTML;
 }
-
 function initData() {
   const jinshangData = window.JINSHANG_DATA || {};
   const suibiData = window.SUIBI_DATA || {};
 
+  // Parse 今上实录: keys are section names, values are arrays of articles
   const jinshangFlat = [];
   for (const [section, articles] of Object.entries(jinshangData)) {
     if (Array.isArray(articles)) {
@@ -525,23 +514,9 @@ function initData() {
   }
   allData['今上实录'] = jinshangFlat;
 
-  let suibiList = [];
-  let weifenleiList = [];
-  if (Array.isArray(suibiData['随笔']) && Array.isArray(suibiData['未分类'])) {
-    suibiList = suibiData['随笔'];
-    weifenleiList = suibiData['未分类'];
-  } else {
-    for (const [, arr] of Object.entries(suibiData)) {
-      if (!Array.isArray(arr)) continue;
-      arr.forEach(a => {
-        if (a && a.id && String(a.id).startsWith('未分类')) weifenleiList.push(a);
-        else suibiList.push(a);
-      });
-    }
-  }
-  allData['随笔'] = suibiList;
-  allData['未分类'] = weifenleiList;
-  window.allData = allData;
+  // Parse 随笔 & 未分类 from suibi.js (keys: "随笔", "未分类")
+  allData['随笔'] = suibiData['随笔'] || [];
+  allData['未分类'] = suibiData['未分类'] || [];
 
   console.log('Data loaded:', {
     今上实录: jinshangFlat.length,
@@ -566,9 +541,11 @@ function openBook(bookName) {
   items.forEach((item, idx) => {
     const div = document.createElement('div');
     div.className = 'article-list-item';
+    // Truncate overly long titles (PDF parsing artifact)
     let displayTitle = item.title || '标题';
     const MAX_TITLE = 60;
     if (displayTitle.length > MAX_TITLE) {
+      // Extract just the date/prefix part
       const m = displayTitle.match(/^(标题\s+\d{4}\s*年.*?字\s+)/);
       if (m) displayTitle = m[1] + '…';
       else displayTitle = displayTitle.substring(0, MAX_TITLE) + '…';
@@ -581,9 +558,12 @@ function openBook(bookName) {
     listEl.appendChild(div);
   });
 
+  // Show reading area
   document.getElementById('reading').classList.add('active');
   document.getElementById('articleList').style.display = 'block';
   document.getElementById('articleView').style.display = 'none';
+
+  // Scroll to reading section
   document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -595,12 +575,12 @@ function closeBook() {
 function showList() {
   document.getElementById('articleList').style.display = 'block';
   document.getElementById('articleView').style.display = 'none';
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: listScrollY, behavior: 'smooth' });
-  });
 }
 
 // ===== ARTICLE VIEW =====
+let currentBook = '';
+let currentIdx = 0;
+
 function showArticle(bookName, idx) {
   currentBook = bookName;
   currentIdx = idx;
@@ -608,38 +588,50 @@ function showArticle(bookName, idx) {
   if (!items || !items[idx]) return;
 
   const item = items[idx];
-  listScrollY = window.scrollY;
+  document.getElementById('articleList').style.display = 'none';
+  document.getElementById('articleView').style.display = 'block';
 
   let title = item.title || '标题';
   let raw = item.content || '';
 
+  // Fix Issue 1: title contains full article content (PDF parsing artifact)
   const HAS_EMBEDDED_CONTENT = title.length > 80 && raw.length > 0;
   if (HAS_EMBEDDED_CONTENT) {
+    // If title is extremely long and content also exists, the title likely
+    // stole content meant for a different article. Use the date-prefix as title.
     const m = title.match(/^(标题\s+\d{4}\s*年[^|]+\|\s*\d+字\s+)/);
     if (m) {
       raw = title.replace(m[1], '').trim() + '\n\n' + raw;
       title = m[1].trim();
     } else {
+      // Just use first part as title
       raw = title + '\n\n' + raw;
       title = title.substring(0, 40) + '…';
     }
   }
 
+  // Fix Issue 3: clean stray PDF page numbers at line starts
   raw = raw.replace(/\n(\d+)\s/g, '\n');
+
+  // Clean date remnants at start of content (from PDF line-break extraction)
   raw = raw.replace(/^[\d\s\n]*?(?:年\d*)?(?:月\d*)?(?:日\s*[\d:]+\s*\|?\s*\d*\s*字?)\s*/m, '').trim();
+  // Also clean multi-line date prefix pattern
   raw = raw.replace(/^\d{4}\s*\n\s*年\d*\s*\n?\s*月\d*\s*\n?\s*日[^\n]*\n?/, '').trim();
 
   document.getElementById('articleTitle').textContent = title;
   document.getElementById('articleMeta').textContent = item.date || '';
 
+  // Parse content
   const bodyEl = document.getElementById('articleBody');
   bodyEl.innerHTML = '';
 
+  // Split by || for annotations, then by \n\n for paragraphs
   const blocks = raw.split('\n\n');
   blocks.forEach((block, bi) => {
     block = block.trim();
     if (!block) return;
-
+    
+    // Check if this is an annotation
     if (block.startsWith('||')) {
       const ann = document.createElement('p');
       ann.className = 'annotation';
@@ -647,51 +639,154 @@ function showArticle(bookName, idx) {
       bodyEl.appendChild(ann);
       return;
     }
-
+    
+    // Check if this is the LAST block and might be a stray title
     const isLastBlock = (bi === blocks.length - 1);
-    if (isLastBlock && block.length < 10 &&
+    if (isLastBlock && block.length < 10 && 
         !block.endsWith('。') && !block.endsWith('？') && !block.endsWith('！') &&
         !block.endsWith('）') && !block.endsWith('」') && !block.endsWith('》') &&
         block.length > 1) {
-      const prevBlock = bi > 0 ? blocks[bi - 1].trim() : '';
-      if (prevBlock && prevBlock.length >= 10) return;
+      // Check if the previous block is also short (poetry pattern) - keep it
+      const prevBlock = bi > 0 ? blocks[bi-1].trim() : '';
+      if (prevBlock && prevBlock.length >= 10) {
+        // Previous block is long prose, this short line is likely a stray title
+        return; // skip rendering this block
+      }
     }
-
+    
     const p = document.createElement('p');
     p.textContent = block;
     bodyEl.appendChild(p);
   });
 
-  document.getElementById('articleList').style.display = 'none';
-  document.getElementById('articleView').style.display = 'block';
   initComments(bookName, idx);
-  document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
 }
 
-// ===== GITALK COMMENTS =====
+// ===== GITHUB ISSUES COMMENTS =====
+const COMMENT_REPO = '999qw/13332';
+const COMMENT_TOKEN = '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';
+let currentCommentId = '';
+
 function initComments(bookName, idx) {
-  const container = document.getElementById('gitalk-container');
-  if (!container) return;
-  container.innerHTML = '';
-  gitalkInstance = null;
+  currentCommentId = `${bookName}-${idx}`;
+  loadComments();
+}
 
-  if (typeof Gitalk !== 'function') {
-    container.innerHTML = '<div class="comment-empty">评论组件加载失败，请稍后再试</div>';
-    return;
+async function loadComments() {
+  const listEl = document.getElementById('commentList');
+  const statusEl = document.getElementById('commentStatus');
+  listEl.innerHTML = '<div class="comment-empty">加载中……</div>';
+  
+  try {
+    const res = await fetch(
+      `https://api.github.com/search/issues?q=${encodeURIComponent(currentCommentId)}+repo:${COMMENT_REPO}+type:issue&sort=created&order=asc`,
+      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
+    );
+    const data = await res.json();
+    
+    if (data.items && data.items.length > 0) {
+      const issueNumber = data.items[0].number;
+      // Load comments on this issue
+      const commentsRes = await fetch(
+        `https://api.github.com/repos/${COMMENT_REPO}/issues/${issueNumber}/comments?sort=created&order=asc`,
+        { headers: { 'Accept': 'application/vnd.github.v3+json' } }
+      );
+      const comments = await commentsRes.json();
+      
+      if (comments.length > 0) {
+        listEl.innerHTML = comments.map(c => {
+          // Parse name from comment body (format: "【昵称】\n\n内容")
+          const body = c.body || '';
+          const nameMatch = body.match(/^【(.+?)】\n\n/);
+          const name = nameMatch ? nameMatch[1] : '匿名';
+          const content = nameMatch ? body.substring(nameMatch[0].length) : body;
+          const date = new Date(c.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+          return `<div class="comment-item"><span class="comment-author">${escapeHtml(name)}</span><span class="comment-date">${date}</span><div class="comment-body">${escapeHtml(content)}</div></div>`;
+        }).join('');
+        return;
+      }
+    }
+    listEl.innerHTML = '<div class="comment-empty">暂无评论，来写第一条吧</div>';
+  } catch (e) {
+    listEl.innerHTML = '<div class="comment-empty">评论加载失败</div>';
   }
+}
 
-  gitalkInstance = new Gitalk({
-    clientID: GITALK_CONFIG.clientID,
-    clientSecret: GITALK_CONFIG.clientSecret,
-    repo: GITALK_CONFIG.repo,
-    owner: GITALK_CONFIG.owner,
-    admin: GITALK_CONFIG.admin,
-    id: `${bookName}-${idx}`,
-    labels: ['comments'],
-    createIssueManually: false,
-    distractionFreeMode: false
-  });
-  gitalkInstance.render('gitalk-container');
+async function postComment() {
+  const name = document.getElementById('commentName').value.trim();
+  const text = document.getElementById('commentText').value.trim();
+  const btn = document.getElementById('commentSubmit');
+  const statusEl = document.getElementById('commentStatus');
+  
+  if (!name) { statusEl.textContent = '请输入昵称'; return; }
+  if (!text) { statusEl.textContent = '请输入评论内容'; return; }
+  if (text.length > 500) { statusEl.textContent = '评论不能超过500字'; return; }
+  
+  btn.disabled = true;
+  statusEl.textContent = '发表中……';
+  
+  try {
+    // Search for existing issue
+    const searchRes = await fetch(
+      `https://api.github.com/search/issues?q=${encodeURIComponent(currentCommentId)}+repo:${COMMENT_REPO}+type:issue&sort=created&order=asc`,
+      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
+    );
+    const searchData = await searchRes.json();
+    let issueNumber;
+    
+    if (searchData.items && searchData.items.length > 0) {
+      issueNumber = searchData.items[0].number;
+    } else {
+      // Create a new issue for this article
+      const createRes = await fetch(`https://api.github.com/repos/${COMMENT_REPO}/issues`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${COMMENT_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: currentCommentId,
+          body: `文章评论：${document.getElementById('articleTitle')?.textContent || ''}`,
+          labels: ['comments']
+        })
+      });
+      const created = await createRes.json();
+      if (created.number) {
+        issueNumber = created.number;
+      } else {
+        statusEl.textContent = '创建评论失败，请稍后再试';
+        btn.disabled = false;
+        return;
+      }
+    }
+    
+    // Post comment to the issue
+    const commentBody = `【${name}】\n\n${text}`;
+    const postRes = await fetch(`https://api.github.com/repos/${COMMENT_REPO}/issues/${issueNumber}/comments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${COMMENT_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ body: commentBody })
+    });
+    
+    if (postRes.ok) {
+      document.getElementById('commentText').value = '';
+      statusEl.textContent = '评论发表成功！';
+      statusEl.style.color = 'var(--gold)';
+      loadComments();
+    } else {
+      statusEl.textContent = '发表失败，请稍后再试';
+    }
+  } catch (e) {
+    statusEl.textContent = '网络错误，请稍后再试';
+  }
+  
+  btn.disabled = false;
 }
 
 // ===== QUOTES: HERO =====
