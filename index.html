@@ -3,11 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>璧靛厓璐為泦</title>
+<title>赵元贞集</title>
+<!-- 安全策略：限制脚本来源；'unsafe-inline' 用于兼容页面内的 onclick 事件处理器 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://giscus.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://giscus.app; font-src https://fonts.gstatic.com; img-src 'self' data: https://avatars.githubusercontent.com; frame-src https://giscus.app; connect-src 'self' https://giscus.app https://api.github.com;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700;900&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://giscus.app">
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700;900&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
 <script src="data-jinshang.js" defer></script>
 <script src="data-suibi.js" defer></script>
+<script src="app.js" defer></script>
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -21,6 +25,9 @@
   --gold-dim:   #8b7355;
   --border-dim: rgba(201,169,110,0.12);
   --font-serif: 'Noto Serif SC','Source Han Serif SC','STSong',serif;
+  --font-calligraphy: 'Ma Shan Zheng','STXingkai','FZKai-Z03','KaiTi',cursive;
+  --reader-size: 1.05em;
+  --reader-width: 880px;
   --font-sans:  'Noto Sans SC','PingFang SC',sans-serif;
   --nav-h: 64px;
   --side-pad: clamp(24px, 6vw, 80px);
@@ -67,6 +74,13 @@ nav.scrolled {
 }
 .nav-links a:hover { color:var(--gold); }
 .nav-links a:hover::after { transform:scaleX(1); transform-origin:left; }
+.nav-search {
+  position:absolute; right:var(--side-pad); border:1px solid var(--border-dim);
+  border-radius:999px; padding:7px 13px; background:transparent;
+  color:var(--paper-dim); font-family:var(--font-sans); font-size:0.72rem;
+  cursor:pointer; transition:color .25s, border-color .25s, background .25s;
+}
+.nav-search:hover { color:var(--gold); border-color:var(--gold-dim); background:rgba(201,169,110,.06); }
 
 /* ===== Hero ===== */
 .hero {
@@ -98,10 +112,10 @@ nav.scrolled {
 .hero-quote::before { content:'\201C'; }
 .hero-quote::after  { content:'\201D'; }
 .hero-title {
-  font-size:clamp(2.8rem,12vw,8rem); font-weight:300;
-  line-height:0.95; letter-spacing:0.06em; color:var(--paper); margin-bottom:1.2rem;
+  font-family:var(--font-calligraphy);
+  font-size:clamp(4.2rem,14vw,10rem); font-weight:400;
+  line-height:1.05; letter-spacing:0.12em; color:var(--paper); margin-bottom:1.2rem;
 }
-.hero-title .second-line { color:var(--gold); }
 .hero-sub {
   font-size:clamp(0.9rem,1.4vw,1.15rem);
   color:var(--paper-dim); letter-spacing:0.15em;
@@ -206,6 +220,22 @@ section { padding:100px var(--side-pad); }
 
 /* Article list */
 .article-list-section { padding:80px var(--side-pad); }
+.article-list-section,
+.article-view {
+  opacity:1;
+  transform:translateY(0);
+  transition:opacity 0.35s ease, transform 0.35s ease;
+}
+.article-list-section.fade-out {
+  opacity:0;
+  transform:translateY(-12px);
+  pointer-events:none;
+}
+.article-view.fade-out {
+  opacity:0;
+  transform:translateY(12px);
+  pointer-events:none;
+}
 .article-list-header {
   display:flex; align-items:baseline; justify-content:space-between;
   margin-bottom:40px; max-width:900px; margin-left:auto; margin-right:auto;
@@ -220,8 +250,27 @@ section { padding:100px var(--side-pad); }
   background:none; border:none;
 }
 .article-list-header .back-btn:hover { color:var(--gold); }
+.article-list-header .list-context { color:var(--gold-dim); font-family:var(--font-sans); font-size:.72rem; }
+.reading-toolbar {
+  max-width:900px; margin:0 auto 22px; display:flex; align-items:center;
+  justify-content:space-between; gap:12px; color:var(--gold-dim);
+  font-family:var(--font-sans); font-size:.74rem;
+}
+.reading-toolbar .toolbar-actions { display:flex; align-items:center; gap:6px; }
+.reading-toolbar button, .search-close {
+  border:1px solid var(--border-dim); border-radius:5px; padding:6px 9px;
+  color:var(--paper-dim); background:transparent; cursor:pointer;
+  font-family:var(--font-sans); font-size:.72rem;
+}
+.reading-toolbar button:hover, .search-close:hover { color:var(--gold); border-color:var(--gold-dim); }
+.reading-toolbar .reading-mode { padding:0 8px; color:var(--paper-dim); }
+.reader-paper { background:#eee4d2; color:#30271f; }
+.reader-paper .article-view, .reader-paper .article-list-section { color:#30271f; }
+.reader-paper .article-view h2, .reader-paper .article-view .article-body p { color:#30271f; }
+.reader-paper .article-view .article-meta { color:#806b4b; border-color:rgba(70,48,25,.18); }
+.reader-paper .article-view .article-body .annotation { color:#765e3b; background:rgba(92,65,31,.07); border-color:#9b7a4d; }
 .article-list {
-  max-width:900px; margin:0 auto;
+  max-width:960px; margin:0 auto;
   display:grid; gap:2px;
   background:var(--border-dim);
 }
@@ -241,7 +290,7 @@ section { padding:100px var(--side-pad); }
 
 /* Article reading */
 .article-view {
-  max-width:720px; margin:0 auto; padding:60px var(--side-pad) 80px;
+  max-width:var(--reader-width); margin:0 auto; padding:60px var(--side-pad) 80px;
 }
 .article-view .article-back {
   display:inline-block;
@@ -256,16 +305,16 @@ section { padding:100px var(--side-pad); }
   color:var(--paper); margin-bottom:8px;
 }
 .article-view .article-meta {
-  font-family:var(--font-sans); font-size:0.82rem;
+  font-family:'Microsoft YaHei','微软雅黑',sans-serif; font-size:0.82rem;
   color:var(--gold-dim); margin-bottom:32px;
   padding-bottom:16px; border-bottom:1px solid var(--border-dim);
 }
 .article-view .article-body p {
-  margin-bottom:16px; text-indent:2em; line-height:2;
-  font-size:1.05em; color:var(--paper);
+  margin-bottom:20px; text-indent:2em; line-height:2.2; letter-spacing:0.025em;
+  font-size:var(--reader-size); color:var(--paper);
 }
 .article-view .article-body .annotation {
-  font-family:'Kaiti SC','KaiTi','STKaiti','妤蜂綋',var(--font-serif),serif;
+  font-family:'Kaiti SC','KaiTi','STKaiti','楷体',var(--font-serif),serif;
   color:var(--gold-dim); text-indent:0; font-size:0.95em;
   padding:8px 14px; margin-top:12px;
   background:rgba(201,169,110,0.06);
@@ -280,55 +329,29 @@ section { padding:100px var(--side-pad); }
   font-size:1em; font-family:var(--font-sans);
   color:var(--gold-dim); margin-bottom:16px; letter-spacing:0.1em;
 }
-/* Comment form */
-.comment-form { margin-bottom:24px; }
-.comment-form input, .comment-form textarea {
-  display:block; width:100%;
-  background:var(--ink-light); border:1px solid var(--border-dim);
-  color:var(--paper); padding:10px 14px;
-  font-family:var(--font-serif); font-size:0.95em;
-  margin-bottom:10px; border-radius:0;
-  outline:none; transition:border-color 0.25s;
-}
-.comment-form input:focus, .comment-form textarea:focus {
-  border-color:var(--gold-dim);
-}
-.comment-form textarea { resize:vertical; min-height:80px; }
-.comment-form .form-row { display:flex; gap:10px; }
-.comment-form .form-row input { flex:1; }
-.comment-form .submit-btn {
-  background:transparent; border:1px solid var(--gold-dim);
-  color:var(--gold); padding:10px 28px; cursor:pointer;
-  font-family:var(--font-sans); font-size:0.82rem; font-weight:700;
-  letter-spacing:0.08em; text-transform:uppercase;
-  transition:all 0.25s;
-}
-.comment-form .submit-btn:hover { background:var(--gold); color:var(--ink); }
-.comment-form .submit-btn:disabled { opacity:0.4; cursor:not-allowed; }
-.comment-form .form-status {
-  font-family:var(--font-sans); font-size:0.78rem;
-  margin-top:8px; min-height:1.2em;
-}
-.comment-item {
-  padding:12px 0; border-bottom:1px solid var(--border-dim);
-}
-.comment-item:last-child { border-bottom:none; }
-.comment-item .comment-author {
-  font-family:var(--font-sans); font-size:0.78rem;
-  color:var(--gold); font-weight:700;
-}
-.comment-item .comment-date {
-  font-family:var(--font-sans); font-size:0.7rem;
-  color:var(--gold-dim); margin-left:8px;
-}
-.comment-item .comment-body {
-  font-size:0.95em; color:var(--paper); line-height:1.7;
-  margin-top:4px;
-}
+.article-navigation { display:flex; justify-content:space-between; gap:16px; margin-top:44px; padding-top:22px; border-top:1px solid var(--border-dim); }
+.article-navigation button { max-width:48%; border:0; background:none; color:var(--gold-dim); cursor:pointer; font-family:var(--font-serif); text-align:left; }
+.article-navigation button:last-child { text-align:right; }
+.article-navigation button:hover { color:var(--gold); }
+.article-navigation small { display:block; font-family:var(--font-sans); font-size:.65rem; margin-bottom:4px; opacity:.8; }
+.search-panel { position:fixed; inset:0; z-index:200; display:none; align-items:flex-start; justify-content:center; padding:12vh 20px 40px; background:rgba(8,6,4,.9); backdrop-filter:blur(12px); }
+.search-panel.open { display:flex; }
+.search-box { width:min(760px,100%); max-height:70vh; overflow:auto; padding:26px; background:#1b1510; border:1px solid rgba(201,169,110,.3); box-shadow:0 20px 70px rgba(0,0,0,.55); }
+.search-head { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.search-head input { flex:1; min-width:0; border:1px solid rgba(201,169,110,.45); border-radius:5px; padding:13px 15px; background:#100d0a; color:var(--paper); font-family:var(--font-serif); font-size:1.12rem; outline:none; }
+.search-head input:focus { border-color:var(--gold-dim); }
+.search-result { display:flex; width:100%; box-sizing:border-box; flex-direction:column; gap:5px; padding:15px 10px; border:0; border-bottom:1px solid rgba(201,169,110,.16); background:transparent; color:var(--paper); cursor:pointer; text-align:left; font-family:var(--font-serif); }
+.search-result:hover { background:rgba(201,169,110,.06); }
+.search-result strong { color:#f1dfbd; font-size:1.12rem; font-weight:500; line-height:1.5; }
+.search-result small { color:#b4956a; font-family:'Microsoft YaHei','微软雅黑',sans-serif; font-size:.78rem; line-height:1.5; }
+.search-result span { color:#d1b98d; font-family:var(--font-serif); font-size:.94rem; line-height:1.75; letter-spacing:.02em; }
+.search-empty { padding:28px 4px; color:var(--gold-dim); font-family:var(--font-serif); font-size:1rem; text-align:center; }
 .comment-empty {
   font-family:var(--font-sans); font-size:0.82rem;
   color:var(--gold-dim); text-align:center; padding:24px 0;
 }
+#giscus-container { min-height:120px; }
+/* giscus 在 iframe 内渲染，样式由 data-theme 控制，此处只需保证容器高度不塌陷 */
 
 /* ===== Footer ===== */
 footer {
@@ -363,9 +386,18 @@ footer .footer-links a:hover { color:var(--gold); }
   .article-list-item .item-meta { white-space:normal; }
   .article-view { padding:40px 20px 60px; }
   .article-view .article-body p { font-size:1em; }
+  .nav-search { right:18px; padding:6px 9px; }
+  .reading-toolbar { align-items:flex-start; flex-direction:column; }
+  .reading-toolbar .toolbar-actions { width:100%; justify-content:flex-end; }
+  .article-navigation { margin-top:32px; }
 }
 @media (max-width:480px) {
-  .nav-links a:nth-child(n+3) { display:none; }
+  .nav-links { gap:.8rem; }
+  .nav-search { font-size:0; width:30px; height:30px; padding:0; }
+  .nav-search::before { content:'⌕'; font-size:1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
 }
 </style>
 </head>
@@ -374,10 +406,11 @@ footer .footer-links a:hover { color:var(--gold); }
 <!-- ===== Nav ===== -->
 <nav id="navbar">
   <div class="nav-links">
-    <a onclick="scrollToSection('books')">鍗风洰</a>
-    <a onclick="scrollToSection('reading')">闃呰</a>
-    <a onclick="scrollToSection('top')">棣栭〉</a>
+    <a onclick="scrollToSection('books')">卷目</a>
+    <a onclick="scrollToSection('reading')">阅读</a>
+    <a onclick="scrollToSection('top')">首页</a>
   </div>
+  <button class="nav-search" onclick="openSearch()" aria-label="搜索文章">搜索</button>
 </nav>
 
 <!-- ===== Hero ===== -->
@@ -389,13 +422,12 @@ footer .footer-links a:hover { color:var(--gold); }
   <div class="hero-content">
     <p class="hero-quote" id="heroQuote"></p>
     <h1 class="hero-title">
-      <span>璧靛厓璐為泦</span>
-      <span class="second-line">Zhao Yuanzhen</span>
+      <span>赵元贞集</span>
     </h1>
-    <p class="hero-sub">浠婁笂瀹炲綍 路 闅忕瑪 路 鏈垎绫?/p>
+    <p class="hero-sub">今上实录 · 随笔 · 未分类</p>
   </div>
   <div class="hero-scroll-indicator">
-    <span>婊氬姩</span>
+    <span>滚动</span>
     <div class="line"></div>
   </div>
 </section>
@@ -403,39 +435,39 @@ footer .footer-links a:hover { color:var(--gold); }
 <!-- ===== Books ===== -->
 <section id="books">
   <div class="section-header reveal">
-    <p class="num">I 路 鍗?/p>
-    <h2>鏂囬泦涓夊嵎</h2>
+    <p class="num">I · 卷</p>
+    <h2>文集三卷</h2>
     <div class="divider"></div>
   </div>
   <div class="books-grid">
-    <div class="book-card reveal" onclick="openBook('浠婁笂瀹炲綍')">
-      <img src="pictures/warm_graded/浣撲粊闃?jpg" alt="" aria-hidden="true" style="object-position:center 30%;">
+    <div class="book-card reveal" onclick="openBook('今上实录')">
+      <img src="pictures/warm_graded/体仁阁.jpg" alt="" aria-hidden="true" style="object-position:center 30%;">
       <div class="card-overlay"></div>
-      <div class="card-arrow">鈫?/div>
+      <div class="card-arrow">→</div>
       <div class="card-content">
-        <p class="card-label">鍗蜂竴</p>
-        <h3 class="card-title">浠婁笂瀹炲綍</h3>
-        <p class="card-count">璇楄瘝 路 楠堟枃 路 鏉傝</p>
+        <p class="card-label">卷一</p>
+        <h3 class="card-title">今上实录</h3>
+        <p class="card-count">诗词 · 骈文 · 杂记</p>
       </div>
     </div>
-    <div class="book-card reveal" onclick="openBook('闅忕瑪')">
-      <img src="pictures/warm_graded/涓庤皝鍚屽潗杞?jpg" alt="" aria-hidden="true" style="object-position:center 100%;">
+    <div class="book-card reveal" onclick="openBook('随笔')">
+      <img src="pictures/warm_graded/与谁同坐轩.jpg" alt="" aria-hidden="true" style="object-position:center 100%;">
       <div class="card-overlay"></div>
-      <div class="card-arrow">鈫?/div>
+      <div class="card-arrow">→</div>
       <div class="card-content">
-        <p class="card-label">鍗蜂簩</p>
-        <h3 class="card-title">闅忕瑪</h3>
-        <p class="card-count">鏁ｆ枃 路 鏉傛劅</p>
+        <p class="card-label">卷二</p>
+        <h3 class="card-title">随笔</h3>
+        <p class="card-count">散文 · 杂感</p>
       </div>
     </div>
-    <div class="book-card reveal" onclick="openBook('鏈垎绫?)">
-      <img src="pictures/warm_graded/宓╁北.jpg" alt="" aria-hidden="true" style="object-position:center 35%;">
+    <div class="book-card reveal" onclick="openBook('未分类')">
+      <img src="pictures/warm_graded/嵩山.jpg" alt="" aria-hidden="true" style="object-position:center 35%;">
       <div class="card-overlay"></div>
-      <div class="card-arrow">鈫?/div>
+      <div class="card-arrow">→</div>
       <div class="card-content">
-        <p class="card-label">鍗蜂笁</p>
-        <h3 class="card-title">鏈垎绫?/h3>
-        <p class="card-count">鏉傛枃 路 鑰冩嵁</p>
+        <p class="card-label">卷三</p>
+        <h3 class="card-title">未分类</h3>
+        <p class="card-count">杂文 · 考据</p>
       </div>
     </div>
   </div>
@@ -453,434 +485,57 @@ footer .footer-links a:hover { color:var(--gold); }
   <!-- Article List (shown when a book is selected) -->
   <div id="articleList" class="article-list-section">
     <div class="article-list-header">
-      <h2 id="listTitle">鏂囬泦</h2>
-      <button class="back-btn" onclick="closeBook()">鈫?杩斿洖鍗风洰</button>
+      <h2 id="listTitle">文集</h2>
+      <button class="back-btn" onclick="closeBook()">← 返回卷目</button>
+    </div>
+    <div class="reading-toolbar" id="readingToolbar">
+      <span class="list-context" id="readingContext">选择一卷开始阅读</span>
+      <div class="toolbar-actions">
+        <button onclick="adjustReadingSize(-0.05)" aria-label="缩小文字">A−</button>
+        <span class="reading-mode" id="readingSizeLabel">标准</span>
+        <button onclick="adjustReadingSize(0.05)" aria-label="放大文字">A+</button>
+        <button onclick="toggleReaderTheme()" id="themeToggle">暖纸</button>
+      </div>
     </div>
     <div class="article-list" id="articleListItems"></div>
   </div>
 
   <!-- Article View (shown when an article is selected) -->
   <div id="articleView" class="article-view" style="display:none;">
-    <button class="article-back" onclick="showList()">鈫?杩斿洖鐩綍</button>
+    <button class="article-back" onclick="showList()">← 返回目录</button>
     <h2 id="articleTitle"></h2>
     <div class="article-meta" id="articleMeta"></div>
     <div class="article-body" id="articleBody"></div>
+    <div class="article-navigation">
+      <button id="prevArticle" onclick="navigateArticle(-1)"><small>上一篇</small><span></span></button>
+      <button id="nextArticle" onclick="navigateArticle(1)"><small>下一篇</small><span></span></button>
+    </div>
     <div class="comments-section">
-      <h3>璇勮鍖?/h3>
-      <div id="comment-area">
-        <div class="comment-form">
-          <div class="form-row">
-            <input type="text" id="commentName" placeholder="浣犵殑鏄电О" maxlength="20">
-          </div>
-          <textarea id="commentText" placeholder="鍐欎笅浣犵殑鎯虫硶鈥︹€?></textarea>
-          <button class="submit-btn" id="commentSubmit" onclick="postComment()">鍙戣〃璇勮</button>
-          <div class="form-status" id="commentStatus"></div>
-        </div>
-        <div id="commentList"></div>
-      </div>
+      <h3>评论区</h3>
+      <div id="giscus-container"></div>
     </div>
   </div>
 </section>
 
+<div id="searchPanel" class="search-panel" aria-hidden="true">
+  <div class="search-box" role="dialog" aria-label="搜索文集">
+    <div class="search-head">
+      <input id="searchInput" type="search" placeholder="搜索标题或正文…" oninput="debouncedSearch(this.value)">
+      <button class="search-close" onclick="closeSearch()">关闭</button>
+    </div>
+    <div id="searchResults"></div>
+  </div>
+</div>
+
 <!-- ===== Footer ===== -->
 <footer class="reveal">
   <div class="footer-links">
-    <a href="#top">杩斿洖棣栭〉</a>
+    <a href="#top">返回首页</a>
     <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
   </div>
 </footer>
 
 <!-- ===== JS ===== -->
-<script>
-// ===== DATA LAYER =====
-let allData = {};
 
-function escapeHtml(str) {
-  if (!str) return '';
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
-function initData() {
-  const jinshangData = window.JINSHANG_DATA || {};
-  const suibiData = window.SUIBI_DATA || {};
-
-  // Parse 浠婁笂瀹炲綍: keys are section names, values are arrays of articles
-  const jinshangFlat = [];
-  for (const [section, articles] of Object.entries(jinshangData)) {
-    if (Array.isArray(articles)) {
-      articles.forEach(a => jinshangFlat.push({ ...a, section }));
-    }
-  }
-  allData['浠婁笂瀹炲綍'] = jinshangFlat;
-
-  // Parse 闅忕瑪 & 鏈垎绫?from suibi.js (keys: "闅忕瑪", "鏈垎绫?)
-  allData['闅忕瑪'] = suibiData['闅忕瑪'] || [];
-  allData['鏈垎绫?] = suibiData['鏈垎绫?] || [];
-
-  console.log('Data loaded:', {
-    浠婁笂瀹炲綍: jinshangFlat.length,
-    闅忕瑪: suibiList.length,
-    鏈垎绫? weifenleiList.length
-  });
-}
-
-// ===== BOOK NAVIGATION =====
-function openBook(bookName) {
-  const items = allData[bookName];
-  if (!items || items.length === 0) {
-    document.getElementById('articleListItems').innerHTML =
-      '<p style="color:var(--gold-dim);text-align:center;padding:40px;">鏆傛棤鍐呭</p>';
-    return;
-  }
-
-  document.getElementById('listTitle').textContent = bookName;
-  const listEl = document.getElementById('articleListItems');
-  listEl.innerHTML = '';
-
-  items.forEach((item, idx) => {
-    const div = document.createElement('div');
-    div.className = 'article-list-item';
-    // Truncate overly long titles (PDF parsing artifact)
-    let displayTitle = item.title || '鏍囬';
-    const MAX_TITLE = 60;
-    if (displayTitle.length > MAX_TITLE) {
-      // Extract just the date/prefix part
-      const m = displayTitle.match(/^(鏍囬\s+\d{4}\s*骞?*?瀛梊s+)/);
-      if (m) displayTitle = m[1] + '鈥?;
-      else displayTitle = displayTitle.substring(0, MAX_TITLE) + '鈥?;
-    }
-    div.innerHTML = `
-      <span class="item-title">${escapeHtml(displayTitle)}</span>
-      <span class="item-meta">${escapeHtml(item.date || '')}</span>
-    `;
-    div.addEventListener('click', () => showArticle(bookName, idx));
-    listEl.appendChild(div);
-  });
-
-  // Show reading area
-  document.getElementById('reading').classList.add('active');
-  document.getElementById('articleList').style.display = 'block';
-  document.getElementById('articleView').style.display = 'none';
-
-  // Scroll to reading section
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
-}
-
-function closeBook() {
-  document.getElementById('reading').classList.remove('active');
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
-}
-
-function showList() {
-  document.getElementById('articleList').style.display = 'block';
-  document.getElementById('articleView').style.display = 'none';
-}
-
-// ===== ARTICLE VIEW =====
-let currentBook = '';
-let currentIdx = 0;
-
-function showArticle(bookName, idx) {
-  currentBook = bookName;
-  currentIdx = idx;
-  const items = allData[bookName];
-  if (!items || !items[idx]) return;
-
-  const item = items[idx];
-  document.getElementById('articleList').style.display = 'none';
-  document.getElementById('articleView').style.display = 'block';
-
-  let title = item.title || '鏍囬';
-  let raw = item.content || '';
-
-  // Fix Issue 1: title contains full article content (PDF parsing artifact)
-  const HAS_EMBEDDED_CONTENT = title.length > 80 && raw.length > 0;
-  if (HAS_EMBEDDED_CONTENT) {
-    // If title is extremely long and content also exists, the title likely
-    // stole content meant for a different article. Use the date-prefix as title.
-    const m = title.match(/^(鏍囬\s+\d{4}\s*骞碵^|]+\|\s*\d+瀛梊s+)/);
-    if (m) {
-      raw = title.replace(m[1], '').trim() + '\n\n' + raw;
-      title = m[1].trim();
-    } else {
-      // Just use first part as title
-      raw = title + '\n\n' + raw;
-      title = title.substring(0, 40) + '鈥?;
-    }
-  }
-
-  // Fix Issue 3: clean stray PDF page numbers at line starts
-  raw = raw.replace(/\n(\d+)\s/g, '\n');
-
-  // Clean date remnants at start of content (from PDF line-break extraction)
-  raw = raw.replace(/^[\d\s\n]*?(?:骞碶d*)?(?:鏈圽d*)?(?:鏃s*[\d:]+\s*\|?\s*\d*\s*瀛?)\s*/m, '').trim();
-  // Also clean multi-line date prefix pattern
-  raw = raw.replace(/^\d{4}\s*\n\s*骞碶d*\s*\n?\s*鏈圽d*\s*\n?\s*鏃^\n]*\n?/, '').trim();
-
-  document.getElementById('articleTitle').textContent = title;
-  document.getElementById('articleMeta').textContent = item.date || '';
-
-  // Parse content
-  const bodyEl = document.getElementById('articleBody');
-  bodyEl.innerHTML = '';
-
-  // Split by || for annotations, then by \n\n for paragraphs
-  const blocks = raw.split('\n\n');
-  blocks.forEach((block, bi) => {
-    block = block.trim();
-    if (!block) return;
-    
-    // Check if this is an annotation
-    if (block.startsWith('||')) {
-      const ann = document.createElement('p');
-      ann.className = 'annotation';
-      ann.textContent = block.replace(/^\|\|\s*/, '');
-      bodyEl.appendChild(ann);
-      return;
-    }
-    
-    // Check if this is the LAST block and might be a stray title
-    const isLastBlock = (bi === blocks.length - 1);
-    if (isLastBlock && block.length < 10 && 
-        !block.endsWith('銆?) && !block.endsWith('锛?) && !block.endsWith('锛?) &&
-        !block.endsWith('锛?) && !block.endsWith('銆?) && !block.endsWith('銆?) &&
-        block.length > 1) {
-      // Check if the previous block is also short (poetry pattern) - keep it
-      const prevBlock = bi > 0 ? blocks[bi-1].trim() : '';
-      if (prevBlock && prevBlock.length >= 10) {
-        // Previous block is long prose, this short line is likely a stray title
-        return; // skip rendering this block
-      }
-    }
-    
-    const p = document.createElement('p');
-    p.textContent = block;
-    bodyEl.appendChild(p);
-  });
-
-  initComments(bookName, idx);
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
-}
-
-// ===== GITHUB ISSUES COMMENTS =====
-const COMMENT_REPO = '999qw/13332';
-const COMMENT_TOKEN = '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';
-let currentCommentId = '';
-
-function initComments(bookName, idx) {
-  currentCommentId = `${bookName}-${idx}`;
-  loadComments();
-}
-
-async function loadComments() {
-  const listEl = document.getElementById('commentList');
-  const statusEl = document.getElementById('commentStatus');
-  listEl.innerHTML = '<div class="comment-empty">鍔犺浇涓€︹€?/div>';
-  
-  try {
-    const res = await fetch(
-      `https://api.github.com/search/issues?q=${encodeURIComponent(currentCommentId)}+repo:${COMMENT_REPO}+type:issue&sort=created&order=asc`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-    );
-    const data = await res.json();
-    
-    if (data.items && data.items.length > 0) {
-      const issueNumber = data.items[0].number;
-      // Load comments on this issue
-      const commentsRes = await fetch(
-        `https://api.github.com/repos/${COMMENT_REPO}/issues/${issueNumber}/comments?sort=created&order=asc`,
-        { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-      );
-      const comments = await commentsRes.json();
-      
-      if (comments.length > 0) {
-        listEl.innerHTML = comments.map(c => {
-          // Parse name from comment body (format: "銆愭樀绉般€慭n\n鍐呭")
-          const body = c.body || '';
-          const nameMatch = body.match(/^銆?.+?)銆慭n\n/);
-          const name = nameMatch ? nameMatch[1] : '鍖垮悕';
-          const content = nameMatch ? body.substring(nameMatch[0].length) : body;
-          const date = new Date(c.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-          return `<div class="comment-item"><span class="comment-author">${escapeHtml(name)}</span><span class="comment-date">${date}</span><div class="comment-body">${escapeHtml(content)}</div></div>`;
-        }).join('');
-        return;
-      }
-    }
-    listEl.innerHTML = '<div class="comment-empty">鏆傛棤璇勮锛屾潵鍐欑涓€鏉″惂</div>';
-  } catch (e) {
-    listEl.innerHTML = '<div class="comment-empty">璇勮鍔犺浇澶辫触</div>';
-  }
-}
-
-async function postComment() {
-  const name = document.getElementById('commentName').value.trim();
-  const text = document.getElementById('commentText').value.trim();
-  const btn = document.getElementById('commentSubmit');
-  const statusEl = document.getElementById('commentStatus');
-  
-  if (!name) { statusEl.textContent = '璇疯緭鍏ユ樀绉?; return; }
-  if (!text) { statusEl.textContent = '璇疯緭鍏ヨ瘎璁哄唴瀹?; return; }
-  if (text.length > 500) { statusEl.textContent = '璇勮涓嶈兘瓒呰繃500瀛?; return; }
-  
-  btn.disabled = true;
-  statusEl.textContent = '鍙戣〃涓€︹€?;
-  
-  try {
-    // Search for existing issue
-    const searchRes = await fetch(
-      `https://api.github.com/search/issues?q=${encodeURIComponent(currentCommentId)}+repo:${COMMENT_REPO}+type:issue&sort=created&order=asc`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } }
-    );
-    const searchData = await searchRes.json();
-    let issueNumber;
-    
-    if (searchData.items && searchData.items.length > 0) {
-      issueNumber = searchData.items[0].number;
-    } else {
-      // Create a new issue for this article
-      const createRes = await fetch(`https://api.github.com/repos/${COMMENT_REPO}/issues`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `token ${COMMENT_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: currentCommentId,
-          body: `鏂囩珷璇勮锛?{document.getElementById('articleTitle')?.textContent || ''}`,
-          labels: ['comments']
-        })
-      });
-      const created = await createRes.json();
-      if (created.number) {
-        issueNumber = created.number;
-      } else {
-        statusEl.textContent = '鍒涘缓璇勮澶辫触锛岃绋嶅悗鍐嶈瘯';
-        btn.disabled = false;
-        return;
-      }
-    }
-    
-    // Post comment to the issue
-    const commentBody = `銆?{name}銆慭n\n${text}`;
-    const postRes = await fetch(`https://api.github.com/repos/${COMMENT_REPO}/issues/${issueNumber}/comments`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${COMMENT_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ body: commentBody })
-    });
-    
-    if (postRes.ok) {
-      document.getElementById('commentText').value = '';
-      statusEl.textContent = '璇勮鍙戣〃鎴愬姛锛?;
-      statusEl.style.color = 'var(--gold)';
-      loadComments();
-    } else {
-      statusEl.textContent = '鍙戣〃澶辫触锛岃绋嶅悗鍐嶈瘯';
-    }
-  } catch (e) {
-    statusEl.textContent = '缃戠粶閿欒锛岃绋嶅悗鍐嶈瘯';
-  }
-  
-  btn.disabled = false;
-}
-
-// ===== QUOTES: HERO =====
-const heroQuotes = [
-  "涓€鍒囦簨鏉ラ兘鐩搁殢锛岀偣鐐规淮婊达紝姹囨垚灞卞拰娴枫€?,
-  "鍑爮涓€鏈涘崈鍩庨洩锛屾潹鑺卞敖澶勶紝鍚屾槸椋庡崈閲屻€?,
-  "姝ら檯鐣欒姳搴斾笉浣忥紝涓旈殢椋庡幓鏄綊鏈熴€?,
-  "涓€浠诲崡鍖楅锛屼竴鍘讳笁鍥涢噷銆?,
-  "鏇捐鏄熼棿鏈堬紝鑷湪娴佷簯鏃躲€?,
-  "鎰熸剰闀垮姝わ紝姘撮潤鏄ュ０杩溿€?,
-  "蹇ф潵涓旇閰掞紝鏈堜笅姹熸按纰с€?,
-  "鍚捐緢宀傚娆箰濡備粖澶滐紵浣嗕娇鏆簯褰掑幓鎹㈠噳鏈堬紒",
-  "鑷彜鐙傜敓涓村彴澶氭枃鐣ワ紝瀹夊彲浣挎垜鏃犻厭瀵归噾闃欙紒",
-  "楂樺北鍏ラ潚浜戯紝娴佹按瑙呬簤娆€傚北姘翠氦鐩告槧锛屼竾鐗╃粓澶嶅銆?,
-  "淇經浣曞繀姹備經锛屼經鎬у嵆浜烘€э紝瑙佽嚜宸卞嵆瑙佺湡浣涖€?,
-  "绾㈠彾钀斤紝绉嬫剰娴擄紝婀块洦钀芥鑺便€?,
-  "濡備竴灏剧珵璺冪殑椴ら奔锛屼竴澶存墡杩涙槬绉嬮檯浼氱殑鐑熸尝涓€?,
-  "涓栫晫鐨勬剰涔夛紝鍦ㄤ簬鎴戣兘閬囧埌浣犮€?,
-  "鏃舵椂鏃犱竴鏃讹紝澶勫鏃犱竴澶勶紝涓囩墿褰掑彜鐑紝鐕冪伅寰呮潵浜恒€?,
-  "绉嬮鏄庢湀杞荤槮锛屾唱妯祦锛屾櫄鏉ラ暱娌冲褰卞鏈堥叕銆?,
-  "绉嬮洦钀界鑺憋紝娓呴閫侀湝鍗庯紝灞辫壊寰樺緤鑰侊紝鏄熸渤閱変箻妲庛€?,
-  "鏄熸槦鍑犲洖椤撅紝绗戠湅浜洪棿椋庣墿銆?,
-  "涓€浠绘槬椋庡娴佹按锛屽幓涔熸棤绌峰凡銆?,
-  "浼熷姏澶╃旱锛屽彲鍙圭敓涓嶉€㈡椂锛屾姳鎷欏畧璐烇紝闅句负鏃ф棩鏂囩珷銆?,
-  "妗ヨ竟鍗ф湀娴佹按澶╂槦銆傞櫎閲戠蔼灏藉幓瀵归鍚熴€?,
-  "浜洪棿涓栫煭锛岃€岃疆鍥炲張鐭紱浜洪棿涓栬嫤锛岃€岃疆鍥炰害鑻︺€?,
-  "浠栦滑涓€鏃犳墍鏈夊嵈鎷ユ湁涓€鍒囷紝鎴戞嫢鏈変竴鍒囧嵈涓€鏃犳墍鏈夈€?,
-  "鍞効锛屼娇鎴戠殗甯濋櫅涓嬩竾涓囧勾銆?,
-  "蹇剰鎷椋庛€?,
-  "鎰夸綘姝ょ敓绾噣濡傛按銆?,
-  "鍚涗笉瑙侊紝妤氬瓙鏂瑰崄閲岋紝涔冩暍鍒嗛樀寮曞鸡鍚戜腑鍥姐€?,
-  "鍖楀嚭闃欓棬鍗佷綑閲岋紝椋庢鎭€傛湜楠婂北涔嬮珮鍏紝涓翠簬娓€?,
-  "绉﹀コ褰撴棩鏁欑敾鑸紝鐘硅嚜椤剧姹熴€?,
-  "閱夐噷鑽℃睙鑸燂紝褰掑幓鏇存棤鏈熴€?
-];
-const heroEl = document.getElementById('heroQuote');
-let hi = Math.floor(Math.random() * heroQuotes.length);
-heroEl.textContent = heroQuotes[hi];
-setInterval(() => {
-  hi = (hi + 1) % heroQuotes.length;
-  heroEl.style.opacity = '0';
-  setTimeout(() => {
-    heroEl.textContent = heroQuotes[hi];
-    heroEl.style.opacity = '1';
-  }, 400);
-}, 3000);
-
-// ===== QUOTES: SEPARATOR =====
-const sepQuotes = [
-  "瀵规垜鑰岃█锛岃瘲鏄珮搴︽鎷紝绾补鍝茬悊锛屾槸鍙互涓嶇敤杞崲鑰屾祽鐒跺ぉ鎴愮殑鐩存帴鍙劅鍙椾綋銆?,
-  "鏁ｆ枃涔熸槸鍑濅竴鐨勶紝鎵€浠ヤ笉鑳藉鍙欎簨涓€鑸彂鏁ｏ紝鍙兘杩芥眰鎰忓拰鑰岀杩戙€?,
-  "鎴戜富瑙傜殑鍒嗗紑浜哱u2018鐪熸枃瀛u2019涓嶾u2018鍋囨枃瀛u2019锛孿u2018鐪熸枃瀛u2019搴斿綋鏄簬鍥戒簬姘戞湁瀹炲埄鐨勬枃瀛楋紝\u2018鍋囨枃瀛u2019瑕佷箞鏄湁闃剁骇鎬х殑锛岃涔堝氨鏄簬鍥藉姘戞棌鏃犵敤鐨勫簾鍝併€傜劧鑰屸€︹€﹀簲璇ュ紩鍑轰竴涓柊姒傚康锛岄偅灏辨槸\u2018绾补鏂囧\u2019锛屽嵆浠ユ枃瀛楃殑鍔涢噺涓轰富瑕佺殑涓€绉嶆枃瀛︺€?
-];
-const sepEl = document.getElementById('sepQuote');
-let si = 0;
-sepEl.textContent = '\u201C' + sepQuotes[0] + '\u201D';
-setInterval(() => {
-  si = (si + 1) % sepQuotes.length;
-  sepEl.style.opacity = '0';
-  setTimeout(() => {
-    sepEl.textContent = '\u201C' + sepQuotes[si] + '\u201D';
-    sepEl.style.opacity = '1';
-  }, 500);
-}, 4000);
-
-// ===== NAV SCROLL =====
-window.addEventListener('scroll', () => {
-  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 80);
-}, { passive: true });
-
-// ===== SCROLL REVEAL =====
-const observer = new IntersectionObserver(
-  entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
-  { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
-);
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-// ===== PARALLAX =====
-window.addEventListener('scroll', () => {
-  const y = window.scrollY;
-  document.querySelectorAll('.hero-bg img, .separator img').forEach(img => {
-    img.style.transform = `translateY(${y * 0.3}px)`;
-  });
-}, { passive: true });
-
-// ===== NAV SCROLL HELPER =====
-function scrollToSection(id) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth' });
-}
-
-// ===== INIT =====
-document.addEventListener('DOMContentLoaded', initData);
-</script>
 </body>
 </html>
-
