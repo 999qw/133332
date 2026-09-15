@@ -431,22 +431,28 @@ function applyTwikooTheme() {
   }
 }
 
+// 关键：Twikoo 基于 Vue 2，其 $mount(el) 会把宿主元素「整个替换」成 <div id="twikoo" class="twikoo">。
+// 也就是说 #twikoo-container 在首次挂载后就不存在了。若继续复用它，第二次 init 会因取不到元素而
+// 静默失效——页面便会一直停留在第一篇文章的评论上（表现为「评论在所有文章下都看得见」）。
+// 正确做法：把挂载点放在一个永不替换的固定宿主 #twikoo-host 里，每次切换文章都重建挂载点。
 function initComments(bookName, idx) {
-  const container = document.getElementById('twikoo-container');
-  if (!container) return;
+  const host = document.getElementById('twikoo-host');
+  if (!host) return;
   if (typeof twikoo === 'undefined') {
-    container.textContent = '评论组件加载失败，请刷新页面重试。';
+    host.textContent = '评论组件加载失败，请刷新页面重试。';
     return;
   }
-  // 换文章时清空容器并重新 init，避免残留上一篇文章的评论
-  container.innerHTML = '';
+  const mount = document.createElement('div');
+  mount.id = 'twikoo-container';
+  while (host.firstChild) host.removeChild(host.firstChild);
+  host.appendChild(mount);
   applyTwikooTheme();
-  twikoo.init({
+  return twikoo.init({
     envId: TWIKOO_CONFIG.envId,
     el: '#twikoo-container',
     path: `${bookName}-${idx}`,
     lang: TWIKOO_CONFIG.lang
-  }).then(applyTwikooTheme).catch(() => applyTwikooTheme());
+  }).catch(() => {});
 }
 
 // 切换「暖纸 / 暗色」时同步评论区配色
