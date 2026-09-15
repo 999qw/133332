@@ -7,20 +7,16 @@ let currentIdx = 0;
 let listScrollY = 0;
 const VIEW_TRANSITION_MS = 320;
 
-// ===== GISCUS COMMENTS =====
-// 使用 Giscus（GitHub Discussions）实现评论区，前端不含任何 Token/Secret
-//
-// 当前生效配置指向 999qw/13332 —— 已实测可用（该仓库已装 giscus App 且已启用 Discussions）
-// 如需改为站点主仓库 999qw/133332，必须先完成两件事，否则会报
-// "giscus is not installed on this repository"：
-//   1. 在 https://github.com/999qw/133332/settings 勾选 Discussions
-//   2. 在 https://github.com/apps/giscus 给 999qw/133332 授权安装
-// 然后到 https://giscus.app/zh-CN 选出该仓库的 category-id，替换下面四项即可。
-const GISCUS_CONFIG = {
-  repo: '999qw/13332',
-  repoId: 'R_kgDOS4H4ew',
-  category: 'Announcements',
-  categoryId: 'DIC_kwDOS4H4e84C-_Nk'
+// ===== COMMENTS: TWIKOO =====
+// 评论系统 = Twikoo（自建云函数 + MongoDB）。访客只需填昵称即可评论，无需注册任何账号。
+//   后端：Netlify 云函数 https://zhaoyuan.netlify.app/.netlify/functions/twikoo
+//   数据：MongoDB Atlas 免费集群
+//   前端：twikoo.min.js 与本文件同源自托管，不依赖任何 CDN
+// 管理后台：打开任一文章评论区 → 点右下角「小齿轮」图标 → 设置管理员密码
+// 数据备份：在 MongoDB Atlas 对 twikoo 库做导出即可
+const TWIKOO_CONFIG = {
+  envId: 'https://zhaoyuan.netlify.app/.netlify/functions/twikoo',
+  lang: 'zh-CN'
 };
 
 function escapeHtml(str) {
@@ -141,7 +137,7 @@ function toggleReaderTheme() {
   localStorage.setItem('reader-theme', paper ? 'paper' : 'dark');
   const button = document.getElementById('themeToggle');
   if (button) button.textContent = paper ? '暗色' : '暖纸';
-  syncGiscusTheme();
+  syncTwikooTheme();
 }
 
 function initReaderSettings() {
@@ -418,47 +414,44 @@ function showArticle(bookName, idx) {
   }, VIEW_TRANSITION_MS);
 }
 
-// ===== GISCUS COMMENTS =====
-// giscus 渲染在 iframe 中；每篇文章用唯一的 term（如「今上实录-5」）对应一个 Discussion
-function giscusTheme() {
-  return document.body.classList.contains('reader-paper') ? 'light' : 'transparent_dark';
+// ===== TWIKOO COMMENTS =====
+// Twikoo 用 path 区分文章。本站是 hash 路由的 SPA，所有文章共用同一个 URL 路径，
+// 因此必须显式传入每篇唯一的 path（如「今上实录-5」），否则所有文章的评论会串在一起。
+function twikooIsDark() {
+  return !document.body.classList.contains('reader-paper');
+}
+
+function applyTwikooTheme() {
+  const container = document.getElementById('twikoo-container');
+  if (!container) return;
+  if (twikooIsDark()) {
+    container.setAttribute('data-theme', 'dark');
+  } else {
+    container.removeAttribute('data-theme');
+  }
 }
 
 function initComments(bookName, idx) {
-  const container = document.getElementById('giscus-container');
+  const container = document.getElementById('twikoo-container');
   if (!container) return;
+  if (typeof twikoo === 'undefined') {
+    container.textContent = '评论组件加载失败，请刷新页面重试。';
+    return;
+  }
+  // 换文章时清空容器并重新 init，避免残留上一篇文章的评论
   container.innerHTML = '';
-  loadGiscus(`${bookName}-${idx}`, container);
+  applyTwikooTheme();
+  twikoo.init({
+    envId: TWIKOO_CONFIG.envId,
+    el: '#twikoo-container',
+    path: `${bookName}-${idx}`,
+    lang: TWIKOO_CONFIG.lang
+  }).then(applyTwikooTheme).catch(() => applyTwikooTheme());
 }
 
-function loadGiscus(term, container) {
-  const script = document.createElement('script');
-  script.src = 'https://giscus.app/client.js';
-  script.setAttribute('data-repo', GISCUS_CONFIG.repo);
-  script.setAttribute('data-repo-id', GISCUS_CONFIG.repoId);
-  script.setAttribute('data-category', GISCUS_CONFIG.category);
-  script.setAttribute('data-category-id', GISCUS_CONFIG.categoryId);
-  script.setAttribute('data-mapping', 'specific');
-  script.setAttribute('data-term', term);
-  script.setAttribute('data-strict', '0');
-  script.setAttribute('data-reactions-enabled', '1');
-  script.setAttribute('data-emit-metadata', '0');
-  script.setAttribute('data-input-position', 'bottom');
-  script.setAttribute('data-theme', giscusTheme());
-  script.setAttribute('data-lang', 'zh-CN');
-  script.setAttribute('crossorigin', 'anonymous');
-  script.async = true;
-  container.appendChild(script);
-}
-
-// 切换「暖纸 / 暗色」时同步 giscus 主题
-function syncGiscusTheme() {
-  const frame = document.querySelector('iframe.giscus-frame');
-  if (!frame || !frame.contentWindow) return;
-  frame.contentWindow.postMessage(
-    { giscus: { setConfig: { theme: giscusTheme() } } },
-    'https://giscus.app'
-  );
+// 切换「暖纸 / 暗色」时同步评论区配色
+function syncTwikooTheme() {
+  applyTwikooTheme();
 }
 
 // ===== QUOTES: HERO =====
