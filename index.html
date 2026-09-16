@@ -59,13 +59,13 @@ nav.scrolled {
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 1px 0 var(--border-dim);
 }
-.nav-links { display:flex; gap:2.5rem; }
+.nav-links { display:flex; gap:clamp(2.5rem, 6vw, 5.5rem); }
 .nav-links a {
   position:relative;
   font-family: var(--font-sans);
-  font-size:0.82rem; font-weight:700; letter-spacing:0.08em;
+  font-size:1.05rem; font-weight:700; letter-spacing:0.12em;
   color:var(--paper-dim); text-decoration:none; text-transform:uppercase;
-  padding:4px 0; cursor:pointer; transition:color 0.25s;
+  padding:8px 2px; cursor:pointer; transition:color 0.25s;
 }
 .nav-links a::after {
   content:''; position:absolute; bottom:0; left:0; right:0;
@@ -108,10 +108,22 @@ nav.scrolled {
   font-family:var(--font-serif);
   font-size:clamp(0.85rem,1.3vw,1.05rem);
   color:var(--gold-dim); margin-bottom:1.8rem;
-  min-height:1.8em; line-height:1.6; transition:opacity 0.5s;
+  min-height:1.8em; line-height:1.6;
 }
-.hero-quote::before { content:'\201C'; }
-.hero-quote::after  { content:'\201D'; }
+
+/* ===== 诗句：激光扫描 ===== */
+/* 被裁元素必须收缩到正好等于文字宽度 —— 否则 clip-path 的百分比按整行宽度算，
+   白线会扫过两侧空白，文字早就消失或还没开始。 */
+.quote-wrap { position:relative; display:inline-block; max-width:100%; }
+.quote-text { display:inline-block; max-width:100%; }
+.quote-laser {
+  position:absolute; top:-0.15em; bottom:-0.15em; left:0; width:2px;
+  background:#fff; border-radius:1px;
+  box-shadow:0 0 5px rgba(255,255,255,.9), 0 0 15px rgba(255,255,255,.45);
+  opacity:0; pointer-events:none;
+  transition:opacity .16s linear;
+}
+.quote-wrap.lasing .quote-laser { opacity:1; }
 .hero-title {
   font-family:var(--font-calligraphy);
   font-size:clamp(4.2rem,14vw,10rem); font-weight:400;
@@ -213,14 +225,25 @@ section { padding:100px var(--side-pad); }
   font-size:clamp(0.9rem,1.6vw,1.2rem); font-weight:300; line-height:1.7;
   max-width:720px; margin:0 auto; padding:0 var(--side-pad); text-align:center;
 }
-.separator .sep-text span { display:block; transition:opacity 0.6s; }
+
 
 /* ===== Reading Area ===== */
 .reading-area { display:none; }
-.reading-area.active { display:block; }
+/* 阅读区是一块独立的全屏滚动层：列表页与详情页各自成「一页」，
+   滚到底/滚到顶都不会穿到主页面或其他页面去 */
+.reading-area.active {
+  display:block;
+  position:fixed; inset:0; z-index:60;
+  overflow-y:auto; overflow-x:hidden;
+  overscroll-behavior:contain;
+  background:var(--ink);
+  -webkit-overflow-scrolling:touch;
+}
+body.reading-open { overflow:hidden; }
 
 /* Article list */
 .article-list-section { padding:80px var(--side-pad); }
+
 .article-list-section,
 .article-view {
   opacity:1;
@@ -295,9 +318,9 @@ section { padding:100px var(--side-pad); }
 }
 .article-view .article-back {
   display:inline-block;
-  font-family:var(--font-sans); font-size:0.78rem; font-weight:700;
-  letter-spacing:0.08em; color:var(--gold-dim); cursor:pointer;
-  text-decoration:none; text-transform:uppercase; margin-bottom:40px;
+  font-family:var(--font-sans); font-size:1.05rem; font-weight:700;
+  letter-spacing:0.12em; color:var(--gold-dim); cursor:pointer;
+  text-decoration:none; margin-bottom:44px; padding:8px 4px;
   transition:color 0.25s; background:none; border:none;
 }
 .article-view .article-back:hover { color:var(--gold); }
@@ -445,9 +468,55 @@ footer .footer-links a:hover { color:var(--gold); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
 }
+
+/* ===== 开场加载屏：纯黑底 + 只留书名，2 秒后其余内容依次渐现 =====
+   实现要点：不另造一份标题，而是直接复用首页的 .hero-title 本身。
+   于是「开场文字」与「首页文字」天然是同一个元素 —— 字号、字体、位置必然一致，不存在对不齐的问题。 */
+body.splash-on { animation: splashBlackout 0.85s ease 2s both; }
+@keyframes splashBlackout {
+  from { background:#000; }
+  to   { background:var(--ink); }
+}
+/* 标题：字距由宽收到首页自身的 0.12em，收拢完成时即为首页的最终状态 */
+body.splash-on .hero-title { animation: heroTitleIn 1.2s ease both; }
+@keyframes heroTitleIn {
+  from { opacity:0; letter-spacing:0.42em; }
+  to   { opacity:1; letter-spacing:0.12em; }
+}
+/* 其余内容：延迟 2 秒后整体渐现（delay + fill-mode:both，纯 CSS，无需 JS 解除） */
+body.splash-on .hero-bg,
+body.splash-on .hero-overlay,
+body.splash-on .hero-quote,
+body.splash-on .hero-sub,
+body.splash-on .hero-scroll-indicator,
+body.splash-on nav,
+body.splash-on #books,
+body.splash-on footer { animation: contentIn 0.9s ease 2s both; }
+@keyframes contentIn { from { opacity:0; } to { opacity:1; } }
+
+
+/* ===== 翻页（翻书）动画层 =====
+   整幅帘子切成 8 段，每段由左右两条「缝」界定。每条缝以各自的速度移动，
+   段宽随之伸缩 —— 于是每条速度不一，而缝的顺序始终不乱、相邻缝间距恒定
+   不小于一段的基准宽，全程严丝合缝，既不重叠也不露白。
+   帘子铺满屏幕的瞬间替换内容，新内容在退场时被「揭示」出来。
+   材质：每条竖条 70% 不透明度，色阶由暗金（左）递变到深棕（右）——左浅右深，
+   最深一端刻意避开纯黑；各自叠加毛玻璃模糊。 */
+#pageFlip {
+  position:fixed; inset:0; z-index:400;
+  overflow:hidden; pointer-events:none;
+  display:none;
+}
+#pageFlip.on { display:block; }
+#pageFlip .flip-bar {
+  position:absolute; top:0; left:0; height:100%;
+  backdrop-filter:blur(14px) saturate(1.05);
+  -webkit-backdrop-filter:blur(14px) saturate(1.05);
+}
+
 </style>
 </head>
-<body>
+<body class="splash-on">
 
 <!-- ===== Nav ===== -->
 <nav id="navbar">
@@ -466,7 +535,7 @@ footer .footer-links a:hover { color:var(--gold); }
   </div>
   <div class="hero-overlay"></div>
   <div class="hero-content">
-    <p class="hero-quote" id="heroQuote"></p>
+    <p class="hero-quote"><span class="quote-wrap" id="heroQuoteWrap"><span class="quote-text" id="heroQuote"></span><i class="quote-laser" aria-hidden="true"></i></span></p>
     <h1 class="hero-title">
       <span>赵元贞集</span>
     </h1>
@@ -523,7 +592,7 @@ footer .footer-links a:hover { color:var(--gold); }
 <div class="separator reveal">
   <img src="pictures/warm_graded/f166950c9955dc974e58a3da76e0492b.jpg" alt="" aria-hidden="true">
   <div class="sep-overlay"></div>
-  <div class="sep-text"><span id="sepQuote"></span></div>
+  <div class="sep-text"><span class="quote-wrap" id="sepQuoteWrap"><span class="quote-text" id="sepQuote"></span><i class="quote-laser" aria-hidden="true"></i></span></div>
 </div>
 
 <!-- ===== Reading Area ===== -->
@@ -536,12 +605,6 @@ footer .footer-links a:hover { color:var(--gold); }
     </div>
     <div class="reading-toolbar" id="readingToolbar">
       <span class="list-context" id="readingContext">选择一卷开始阅读</span>
-      <div class="toolbar-actions">
-        <button onclick="adjustReadingSize(-0.05)" aria-label="缩小文字">A−</button>
-        <span class="reading-mode" id="readingSizeLabel">标准</span>
-        <button onclick="adjustReadingSize(0.05)" aria-label="放大文字">A+</button>
-        <button onclick="toggleReaderTheme()" id="themeToggle">暖纸</button>
-      </div>
     </div>
     <div class="article-list" id="articleListItems"></div>
   </div>
@@ -582,6 +645,9 @@ footer .footer-links a:hover { color:var(--gold); }
 </footer>
 
 <!-- ===== JS ===== -->
+
+<!-- ===== 翻页（翻书）动画层 ===== -->
+<div id="pageFlip" aria-hidden="true"></div>
 
 </body>
 </html>

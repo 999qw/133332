@@ -5,6 +5,7 @@ let allData = {};
 let currentBook = '';
 let currentIdx = 0;
 let listScrollY = 0;
+let lastBook = '';
 const VIEW_TRANSITION_MS = 320;
 
 // ===== COMMENTS: TWIKOO =====
@@ -147,17 +148,12 @@ function initReaderSettings() {
     const label = document.getElementById('readingSizeLabel');
     if (label) label.textContent = savedSize === 1.05 ? '标准' : `${Math.round(savedSize / 1.05 * 100)}%`;
   }
-  if (localStorage.getItem('reader-theme') === 'paper') {
-    document.body.classList.add('reader-paper');
-    const button = document.getElementById('themeToggle');
-    if (button) button.textContent = '暗色';
-  }
 }
 
 function navigateArticle(delta) {
   const items = allData[currentBook] || [];
   const nextIdx = currentIdx + delta;
-  if (items[nextIdx]) showArticle(currentBook, nextIdx);
+  if (items[nextIdx]) showArticle(currentBook, nextIdx, delta < 0 ? 'prev' : 'next');
 }
 
 function splitAnnotationEntries(annotation) {
@@ -212,12 +208,14 @@ function splitPoetryLines(body, item) {
 function updateReadingProgress() {
   const bar = document.querySelector('#readingProgress span');
   const view = document.getElementById('articleView');
-  if (!bar || !view || view.style.display === 'none') {
+  const scroller = document.getElementById('reading');
+  if (!bar || !view || !scroller || view.style.display === 'none') {
     if (bar) bar.style.width = '0%';
     return;
   }
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  bar.style.width = `${max > 0 ? Math.min(100, (window.scrollY / max) * 100) : 0}%`;
+  // 阅读区现在是独立滚动的容器，进度按容器自身的滚动量计算
+  const max = scroller.scrollHeight - scroller.clientHeight;
+  bar.style.width = `${max > 0 ? Math.min(100, (scroller.scrollTop / max) * 100) : 0}%`;
 }
 
 function openSearch() {
@@ -260,7 +258,7 @@ function renderSearchResults(query) {
     const pos = raw.toLowerCase().indexOf(needle);
     const start = Math.max(0, pos - 24);
     const snippet = escapeHtml(raw.slice(start, start + 56));
-    return `<button class="search-result" onclick="closeSearch(); openBook('${escapeHtml(book)}'); setTimeout(() => showArticle('${escapeHtml(book)}', ${idx}), 180)"><strong>${title}</strong><small>${escapeHtml(book)} · ${escapeHtml(item.date || '')}</small><span>${snippet}${raw.length > start + 56 ? '…' : ''}</span></button>`;
+    return `<button class="search-result" onclick="closeSearch(); openBook('${escapeHtml(book)}'); setTimeout(() => showArticle('${escapeHtml(book)}', ${idx}, 'next'), 950)"><strong>${title}</strong><small>${escapeHtml(book)} · ${escapeHtml(item.date || '')}</small><span>${snippet}${raw.length > start + 56 ? '…' : ''}</span></button>`;
   }).join('');
 }
 
@@ -281,6 +279,155 @@ function restoreArticleFromHash() {
   }
 }
 
+// ===== 翻页（翻书）动画 =====
+// 竖条不是各自平移的独立方块 —— 那样速度不同必然撕出缝隙。这里把整幅帘子切成
+// 8 段，每段由左右两条「缝」界定；缝按各自的缓动指数推进，段宽随之伸缩。
+//   · 指数 k 各不相同            -> 速度肉眼可见地不一
+//   · k 全都 > 1                 -> 起步慢，走起来稳
+//   · 指数越大进度越小且恒成立    -> 缝的先后顺序永不颠倒，相邻缝间距恒 >= 12.5vw
+//                                   => 全程严丝合缝，既不重叠也不露白
+// 入/出两段共用一条不中断的时间轴，缓动 p^k 与 1-(1-p)^k 在接缝处速度恰好相等
+// （都等于 k），所以动作一口气贯通，中途不会刹停。
+const FLIP_N = 8;
+const FLIP_PITCH = 100 / FLIP_N;                                              // 每段基准宽 12.5vw
+const FLIP_PHASE_MS = 580;                                                    // 单程时长
+const FLIP_TOTAL_MS = FLIP_PHASE_MS * 2;
+// 两套色板，索引 0 = 帘子最左端，索引 7 = 最右端（全程成立，帘子走到哪都一致）。
+//
+// 甲、书卡 -> 列表：维持原样（左暗金、右深棕，统一 70% 不透明度）。
+const FLIP_PALETTE_LIST = [
+  'rgba(201,169,110,0.70)',   // 最左：暗金
+  'rgba(182,153,99,0.70)',
+  'rgba(164,136,89,0.70)',
+  'rgba(145,120,78,0.70)',
+  'rgba(126,103,68,0.70)',
+  'rgba(107,87,57,0.70)',
+  'rgba(89,70,47,0.70)',
+  'rgba(70,54,36,0.70)'       // 最右：深棕
+];
+//
+// 乙、上一篇 / 下一篇：左侧金黄，越往右颜色越淡、同时越透明。
+// 平均不透明度 0.55（甲为 0.70），所以整体更暗；但最右一档仍落在褐色区间，
+// 叠在页面底色上是 rgb(41,32,24) 量级的深褐，不会压成纯黑。
+const FLIP_PALETTE_ARTICLE = [
+  'rgba(214,176,92,0.88)',    // 最左：金黄
+  'rgba(199,163,86,0.80)',
+  'rgba(180,147,80,0.71)',
+  'rgba(158,129,73,0.61)',
+  'rgba(134,110,66,0.50)',
+  'rgba(114,93,58,0.39)',
+  'rgba(102,81,53,0.29)',
+  'rgba(96,76,50,0.22)'       // 最右：褐色（极淡，但非纯黑）
+];
+const FLIP_COLORS_COUNT = 8;   // 帘子的竖条数（与色板长度一致）
+const FLIP_K = Array.from({ length: FLIP_N + 1 }, (_, i) => 1.5 + 0.16 * i);
+let flipBusy = false;
+
+const easeInPow  = (p, k) => Math.pow(p, k);
+const easeOutPow = (p, k) => 1 - Math.pow(1 - p, k);
+
+function ensureFlipBars() {
+  const layer = document.getElementById('pageFlip');
+  if (!layer) return null;
+  if (!layer.childElementCount) {
+    for (let i = 0; i < FLIP_COLORS_COUNT; i++) {
+      const el = document.createElement('div');
+      el.className = 'flip-bar';
+      layer.appendChild(el);
+    }
+  }
+  return Array.from(layer.querySelectorAll('.flip-bar'));
+}
+
+// 每次扫动按传入的色板着色 —— 两类转场因此可以用不同的色彩与透明度
+function paintFlipColors(bars, palette) {
+  bars.forEach((el, i) => { el.style.background = palette[i % palette.length]; });
+}
+
+function paintFlip(bars, pos) {
+  for (let i = 0; i < FLIP_N; i++) {
+    bars[i].style.left = pos[i] + 'vw';
+    // +0.08vw 是给子像素舍入留的余量，肉眼不可见，但能防止细如发丝的白缝
+    bars[i].style.width = (pos[i + 1] - pos[i] + 0.08) + 'vw';
+  }
+}
+
+// direction: 'next' 帘子从右往左扫；'prev' 为完全相反的逆向
+// swapFn:     在帘子铺满屏幕、旧内容完全被遮住的那一刻执行内容替换
+// fadeTarget: 帘子后面要做交叉淡变的元素（旧内容淡出 -> 替换 -> 新内容淡入），
+//             传了它，画面变化就是渐变而不是突变
+function playPageFlip(direction, swapFn, fadeTarget, palette) {
+  const layer = document.getElementById('pageFlip');
+  const bars = ensureFlipBars();
+  if (!layer || !bars || !bars.length || flipBusy) {
+    if (swapFn) swapFn();
+    return Promise.resolve();
+  }
+  const forward = direction !== 'prev';
+  const offA  = i => (forward ? 100 : -100) + FLIP_PITCH * i;   // 起始整幅停在屏幕外
+  const cover = i => FLIP_PITCH * i;                            // 铺满屏幕
+  const offB  = i => (forward ? -100 : 100) + FLIP_PITCH * i;   // 收尾整幅滑出另一侧
+
+  if (palette) paintFlipColors(bars, palette);
+
+  flipBusy = true;
+  layer.classList.add('on');
+  if (fadeTarget) fadeTarget.style.transition = 'none';         // 由 rAF 逐帧驱动，禁用 CSS 过渡
+
+  let swapped = false;
+  const start = performance.now();
+
+  return new Promise(resolve => {
+    const step = now => {
+      const t = now - start;
+
+      // 替换恰好发生在帘子铺满屏幕的那一刻，时间轴本身不中断
+      if (t >= FLIP_PHASE_MS && !swapped) {
+        swapped = true;
+        if (swapFn) swapFn();
+      }
+
+      const pos = [];
+      for (let i = 0; i <= FLIP_N; i++) {
+        const k = FLIP_K[i];
+        if (t <= FLIP_PHASE_MS) {
+          const p = Math.min(1, t / FLIP_PHASE_MS);
+          pos.push(offA(i) + (cover(i) - offA(i)) * easeInPow(p, k));
+        } else {
+          const p = Math.min(1, (t - FLIP_PHASE_MS) / FLIP_PHASE_MS);
+          pos.push(cover(i) + (offB(i) - cover(i)) * easeOutPow(p, k));
+        }
+      }
+      paintFlip(bars, pos);
+
+      if (fadeTarget) {
+        let o;
+        if (t <= FLIP_PHASE_MS) {
+          // 后半程开始把旧内容淡出
+          o = 1 - Math.max(0, (t / FLIP_PHASE_MS - 0.45) / 0.55);
+        } else {
+          // 替换完成后，新内容用前半程时间淡入
+          o = Math.min(1, (t - FLIP_PHASE_MS) / (FLIP_PHASE_MS * 0.6));
+        }
+        fadeTarget.style.opacity = String(Math.round(o * 1000) / 1000);
+      }
+
+      if (t < FLIP_TOTAL_MS) {
+        requestAnimationFrame(step);
+      } else {
+        layer.classList.remove('on');
+        if (fadeTarget) {
+          fadeTarget.style.opacity = '';
+          fadeTarget.style.transition = '';
+        }
+        flipBusy = false;
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
 // ===== BOOK NAVIGATION =====
 function openBook(bookName) {
   const items = allData[bookName];
@@ -290,6 +437,7 @@ function openBook(bookName) {
     return;
   }
 
+  lastBook = bookName;
   document.getElementById('listTitle').textContent = bookName;
   const listEl = document.getElementById('articleListItems');
   const articleList = document.getElementById('articleList');
@@ -310,11 +458,11 @@ function openBook(bookName) {
       <span class="item-title">${escapeHtml(displayTitle)}</span>
       <span class="item-meta">${escapeHtml(item.date || '')}</span>
     `;
-    div.addEventListener('click', () => showArticle(bookName, idx));
+    div.addEventListener('click', () => showArticle(bookName, idx, 'next'));
     listEl.appendChild(div);
   });
 
-  document.getElementById('reading').classList.add('active');
+  // 列表内容已经构建完毕，再用翻页动画把它「揭示」出来
   articleList.classList.remove('fade-out');
   articleView.classList.remove('fade-out');
   articleList.style.display = 'block';
@@ -324,12 +472,18 @@ function openBook(bookName) {
   updateReadingContext();
   updateReadingProgress();
 
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
+  const readingEl = document.getElementById('reading');
+  playPageFlip('next', () => {
+    readingEl.classList.add('active');
+    document.body.classList.add('reading-open');   // 锁定主页面滚动
+    readingEl.scrollTop = 0;
+  }, readingEl, FLIP_PALETTE_LIST);
 }
 
 function closeBook() {
   document.getElementById('reading').classList.remove('active');
-  document.getElementById('reading').scrollIntoView({ behavior: 'smooth' });
+  // 解除锁定即可回到主页面；主页面原有滚动位置保持不变
+  document.body.classList.remove('reading-open');
 }
 
 function showList() {
@@ -347,13 +501,14 @@ function showList() {
     listEl.style.opacity = '1';
     listEl.style.transform = 'translateY(0)';
     requestAnimationFrame(() => {
-      window.scrollTo({ top: listScrollY, behavior: 'smooth' });
+      // 恢复列表页自己的滚动位置（阅读层内部滚动，不再动整个文档）
+      document.getElementById('reading').scrollTo({ top: listScrollY, behavior: 'smooth' });
     });
   }, VIEW_TRANSITION_MS);
 }
 
 // ===== ARTICLE VIEW =====
-function showArticle(bookName, idx) {
+function showArticle(bookName, idx, direction) {
   currentBook = bookName;
   currentIdx = idx;
   const items = allData[bookName];
@@ -362,56 +517,56 @@ function showArticle(bookName, idx) {
   const item = items[idx];
   const listEl = document.getElementById('articleList');
   const viewEl = document.getElementById('articleView');
-  listScrollY = window.scrollY;
+  listScrollY = document.getElementById('reading').scrollTop;
 
   const title = item.title || '标题';
   const raw = item.content || '';
   const mode = item.content_mode || 'prose';
 
-  document.getElementById('articleTitle').textContent = title;
-  document.getElementById('articleMeta').textContent = item.date || '';
-  updateReadingContext();
   history.replaceState(null, '', `#article=${encodeURIComponent(bookName)}&index=${idx}`);
 
-  const bodyEl = document.getElementById('articleBody');
-  bodyEl.innerHTML = '';
-
-  const split = splitArticleContent(raw, title);
-  const body = split.body;
-  const parts = split.annotations;
-  const bodyParagraphs = mode === 'poetry'
-    ? splitPoetryLines(body, item)
-    : body.split(/\n\s*\n/).map(block => block.replace(/\n/g, '').trim()).filter(Boolean);
-  bodyParagraphs.forEach(text => {
-    const p = document.createElement('p');
-    p.textContent = text;
-    bodyEl.appendChild(p);
-  });
-  parts.forEach(annotation => {
-    const entries = splitAnnotationEntries(annotation);
-    entries.forEach(text => {
-      const ann = document.createElement('p');
-      ann.className = 'annotation';
-      ann.textContent = text;
-      bodyEl.appendChild(ann);
+  // 正文只在翻页动画遮满屏幕的那一刻才真正渲染，避免提前露出下一篇的内容
+  const renderBody = () => {
+    const bodyEl = document.getElementById('articleBody');
+    bodyEl.innerHTML = '';
+    const split = splitArticleContent(raw, title);
+    const body = split.body;
+    const parts = split.annotations;
+    const bodyParagraphs = mode === 'poetry'
+      ? splitPoetryLines(body, item)
+      : body.split(/\n\s*\n/).map(block => block.replace(/\n/g, '').trim()).filter(Boolean);
+    bodyParagraphs.forEach(text => {
+      const p = document.createElement('p');
+      p.textContent = text;
+      bodyEl.appendChild(p);
     });
-  });
+    parts.forEach(annotation => {
+      const entries = splitAnnotationEntries(annotation);
+      entries.forEach(text => {
+        const ann = document.createElement('p');
+        ann.className = 'annotation';
+        ann.textContent = text;
+        bodyEl.appendChild(ann);
+      });
+    });
+  };
 
-  listEl.classList.add('fade-out');
-  setTimeout(() => {
+  playPageFlip(direction, () => {
+    document.getElementById('articleTitle').textContent = title;
+    document.getElementById('articleMeta').textContent = item.date || '';
+    renderBody();
+    updateReadingContext();
     listEl.style.display = 'none';
     listEl.classList.remove('fade-out');
     viewEl.style.display = 'block';
     viewEl.classList.remove('fade-out');
-    viewEl.style.opacity = '0';
-    viewEl.style.transform = 'translateY(12px)';
-    void viewEl.offsetWidth;
     viewEl.style.opacity = '1';
     viewEl.style.transform = 'translateY(0)';
     initComments(bookName, idx);
-    document.getElementById('articleTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 详情页从顶部开始展示，不会滚到列表/主页面
+    document.getElementById('reading').scrollTo({ top: 0, behavior: 'auto' });
     updateReadingProgress();
-  }, VIEW_TRANSITION_MS);
+  }, viewEl, FLIP_PALETTE_ARTICLE);
 }
 
 // ===== TWIKOO COMMENTS =====
@@ -494,16 +649,66 @@ const heroQuotes = [
   "醉里荡江舟，归去更无期。"
 ];
 const heroEl = document.getElementById('heroQuote');
-let hi = Math.floor(Math.random() * heroQuotes.length);
-heroEl.textContent = heroQuotes[hi];
-setInterval(() => {
-  hi = (hi + 1) % heroQuotes.length;
-  heroEl.style.opacity = '0';
-  setTimeout(() => {
-    heroEl.textContent = heroQuotes[hi];
-    heroEl.style.opacity = '1';
-  }, 400);
-}, 3000);
+const heroWrap = document.getElementById('heroQuoteWrap');
+const sepEl = document.getElementById('sepQuote');
+const sepWrap = document.getElementById('sepQuoteWrap');
+
+// ===== 诗句：激光扫描切换 =====
+// 白线以匀速掠过诗句，扫到哪就把文字消到哪；完全消除后停顿 0.5 秒，
+// 再自左向右以完全相反的动画把下一句「写」出来。
+const LASER_ERASE_MS = 1150;  // 消除用时
+const LASER_GAP_MS   = 500;   // 完全消除后的停顿
+const LASER_WRITE_MS = 1150;  // 写回用时
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// 白线的推进曲线：中段近似匀速，两端略微放慢（不是停住，端速约为中段的 45%）。
+// 做法是把线性进度与 smoothstep 按 0.45 混合 —— 既保留中段的匀速感，
+// 又让起步和收尾有缓冲。
+const easeLaser = p => p + (p * p * (3 - 2 * p) - p) * 0.45;
+
+// 硬边位置用百分比表示：0 = 文字最左端，100 = 最右端
+function laserSweep(textEl, wrapEl, ms, fromPct, toPct) {
+  return new Promise(resolve => {
+    const laser = wrapEl.querySelector('.quote-laser');
+    const start = performance.now();
+    wrapEl.classList.add('lasing');
+    const step = now => {
+      const p = Math.min(1, (now - start) / ms);
+      const edge = fromPct + (toPct - fromPct) * easeLaser(p);  // 变速：中段匀速，两端稍慢
+      textEl.style.clipPath = `inset(0 ${100 - edge}% 0 0)`;   // 硬边裁切，边落在 edge 处
+      if (laser) laser.style.left = `calc(${edge}% - 1px)`;    // 白线骑在硬边上
+      if (p < 1) {
+        requestAnimationFrame(step);
+      } else {
+        wrapEl.classList.remove('lasing');
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function startQuoteLaser(textEl, wrapEl, quotes, wrapFn, dwellMs, startIndex) {
+  if (!textEl || !wrapEl) return;
+  let i = ((startIndex % quotes.length) + quotes.length) % quotes.length;
+  const paint = hide => {
+    textEl.textContent = wrapFn(quotes[i]);
+    textEl.style.clipPath = hide ? 'inset(0 100% 0 0)' : '';
+  };
+  paint(false);
+
+  (async () => {
+    for (;;) {
+      await wait(dwellMs);
+      await laserSweep(textEl, wrapEl, LASER_ERASE_MS, 100, 0);   // 自右向左：消除
+      await wait(LASER_GAP_MS);                                   // 停 0.5 秒
+      i = (i + 1) % quotes.length;
+      paint(true);                                                // 此时文字全被裁掉，换句完全不可见
+      await laserSweep(textEl, wrapEl, LASER_WRITE_MS, 0, 100);   // 自左向右：写回（逆动画）
+    }
+  })();
+}
 
 // ===== QUOTES: SEPARATOR =====
 const sepQuotes = [
@@ -511,23 +716,26 @@ const sepQuotes = [
   "散文也是凝一的，所以不能如叙事一般发散，只能追求意和而神近。",
   "我主观的分开了\u2018真文学\u2019与\u2018假文学\u2019，\u2018真文学\u2019应当是于国于民有实利的文字，\u2018假文学\u2019要么是有阶级性的，要么就是于国家民族无用的废品。然而……应该引出一个新概念，那就是\u2018纯粹文学\u2019，即以文字的力量为主要的一种文学。"
 ];
-const sepEl = document.getElementById('sepQuote');
-let si = 0;
-sepEl.textContent = '\u201C' + sepQuotes[0] + '\u201D';
-setInterval(() => {
-  si = (si + 1) % sepQuotes.length;
-  sepEl.style.opacity = '0';
-  setTimeout(() => {
-    sepEl.textContent = '\u201C' + sepQuotes[si] + '\u201D';
-    sepEl.style.opacity = '1';
-  }, 500);
-}, 4000);
+// 启动两处诗句的激光轮换（引号改由 JS 补齐，好让白线能扫过引号本身）
+startQuoteLaser(heroEl, heroWrap, heroQuotes,
+  q => `\u201C${q}\u201D`, 4000, Math.floor(Math.random() * heroQuotes.length));
+startQuoteLaser(sepEl, sepWrap, sepQuotes,
+  q => `\u201C${q}\u201D`, 4500, 0);
 
 // ===== NAV SCROLL =====
 window.addEventListener('scroll', () => {
   document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 80);
   updateReadingProgress();
 }, { passive: true });
+
+// 阅读层是独立滚动容器，它自己的滚动要单独监听
+const readingScroller = document.getElementById('reading');
+if (readingScroller) {
+  readingScroller.addEventListener('scroll', () => {
+    document.getElementById('navbar').classList.toggle('scrolled', readingScroller.scrollTop > 80);
+    updateReadingProgress();
+  }, { passive: true });
+}
 
 // ===== SCROLL REVEAL =====
 const observer = new IntersectionObserver(
@@ -546,6 +754,27 @@ window.addEventListener('scroll', () => {
 
 // ===== NAV SCROLL HELPER =====
 function scrollToSection(id) {
+  const readingEl = document.getElementById('reading');
+  const readingOpen = !!readingEl && readingEl.classList.contains('active');
+
+  // 「阅读」：已打开过书目就直接回到阅读层顶端；否则先去卷目录挑一本
+  if (id === 'reading') {
+    if (readingOpen) {
+      readingEl.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (lastBook && allData[lastBook]) {
+      openBook(lastBook);
+    } else {
+      const books = document.getElementById('books');
+      if (books) books.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
+
+  // 「卷目」「首页」：阅读层是全屏独立层，必须先退出它，主页面才滚得动
+  if (readingOpen) {
+    readingEl.classList.remove('active');
+    document.body.classList.remove('reading-open');
+  }
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth' });
 }
