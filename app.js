@@ -6,6 +6,8 @@ let currentBook = '';
 let currentIdx = 0;
 let listScrollY = 0;
 let lastBook = '';
+let pageWheel = null;      // 首页阻尼句柄
+let readingWheel = null;   // 阅读层阻尼句柄
 const VIEW_TRANSITION_MS = 320;
 
 // ===== COMMENTS: TWIKOO =====
@@ -177,21 +179,14 @@ function splitAnnotationEntries(annotation) {
 function splitArticleContent(raw, title) {
   let parts = raw.split('||');
   let body = parts.shift() || '';
+  // 后记内容一律算正文（不再塞进注释框）。
+  // 唯一例外：单独一行的「后记【N】」小标签仍放注释里当标记。
   const postscript = body.search(/\n后记(?=\s*(?:【|$))/);
   if (postscript > -1) {
-    parts.unshift(body.slice(postscript).trim());
-    body = body.slice(0, postscript).trim();
-  }
-  if (/^后记/.test(title)) {
-    if (/海子/.test(title)) {
-      const firstQuote = body.search(/[“‘]/);
-      if (firstQuote > -1) {
-        parts.unshift(body.slice(firstQuote).trim());
-        body = body.slice(0, firstQuote).trim();
-      }
-    } else {
-      parts.unshift(body.trim());
-      body = '';
+    const tail = body.slice(postscript).trim();
+    if (/^后记【?\d*】?[^\n]{0,2}$/.test(tail)) {
+      parts.unshift(tail);
+      body = body.slice(0, postscript).trim();
     }
   }
   return { body: body.replace(/\n11\.16\s*$/, '').trim(), annotations: parts.filter(Boolean) };
@@ -444,9 +439,17 @@ function openBook(bookName) {
   const articleView = document.getElementById('articleView');
   listEl.innerHTML = '';
 
+  // 墨线分布：隔 2 行 → 隔 3 行 → 隔 2 行 → 隔 4 行，循环。
+  // 想让位置完全随机，把下面一行换成：
+  //   const inkRows = new Set(items.map((_, i) => i).filter(() => Math.random() < 0.3));
+  const INK_GAPS = [2, 3, 2, 4];
+  const inkRows = new Set();
+  for (let i = 1, g = 0; i < items.length; i += INK_GAPS[g++ % INK_GAPS.length] + 1) inkRows.add(i);
+
   items.forEach((item, idx) => {
     const div = document.createElement('div');
     div.className = 'article-list-item';
+    if (inkRows.has(idx)) div.classList.add('ink-row');
     let displayTitle = item.title || '标题';
     const MAX_TITLE = 60;
     if (displayTitle.length > MAX_TITLE) {
@@ -455,9 +458,17 @@ function openBook(bookName) {
       else displayTitle = displayTitle.substring(0, MAX_TITLE) + '…';
     }
     div.innerHTML = `
+      <span class="hover-gold"></span>
+      <span class="hover-ink"></span>
       <span class="item-title">${escapeHtml(displayTitle)}</span>
       <span class="item-meta">${escapeHtml(item.date || '')}</span>
     `;
+    // 每个条目的墨点随机错位，避免所有条目花纹一样
+    const hoverInk = div.querySelector('.hover-ink');
+    if (hoverInk) {
+      hoverInk.style.backgroundPosition =
+        `${-Math.round(Math.random() * 620)}px ${-Math.round(Math.random() * 96)}px`;
+    }
     div.addEventListener('click', () => showArticle(bookName, idx, 'next'));
     listEl.appendChild(div);
   });
@@ -473,6 +484,7 @@ function openBook(bookName) {
   updateReadingProgress();
 
   const readingEl = document.getElementById('reading');
+  cancelDampedScroll();
   playPageFlip('next', () => {
     readingEl.classList.add('active');
     document.body.classList.add('reading-open');   // 锁定主页面滚动
@@ -481,6 +493,7 @@ function openBook(bookName) {
 }
 
 function closeBook() {
+  cancelDampedScroll();
   document.getElementById('reading').classList.remove('active');
   // 解除锁定即可回到主页面；主页面原有滚动位置保持不变
   document.body.classList.remove('reading-open');
@@ -502,6 +515,7 @@ function showList() {
     listEl.style.transform = 'translateY(0)';
     requestAnimationFrame(() => {
       // 恢复列表页自己的滚动位置（阅读层内部滚动，不再动整个文档）
+      cancelDampedScroll();
       document.getElementById('reading').scrollTo({ top: listScrollY, behavior: 'smooth' });
     });
   }, VIEW_TRANSITION_MS);
@@ -518,6 +532,7 @@ function showArticle(bookName, idx, direction) {
   const listEl = document.getElementById('articleList');
   const viewEl = document.getElementById('articleView');
   listScrollY = document.getElementById('reading').scrollTop;
+  cancelDampedScroll();
 
   const title = item.title || '标题';
   const raw = item.content || '';
@@ -564,6 +579,7 @@ function showArticle(bookName, idx, direction) {
     viewEl.style.transform = 'translateY(0)';
     initComments(bookName, idx);
     // 详情页从顶部开始展示，不会滚到列表/主页面
+    cancelDampedScroll();   // 翻页动画期间可能又累积了新的阻尼目标
     document.getElementById('reading').scrollTo({ top: 0, behavior: 'auto' });
     updateReadingProgress();
   }, viewEl, FLIP_PALETTE_ARTICLE);
@@ -606,7 +622,8 @@ function initComments(bookName, idx) {
     envId: TWIKOO_CONFIG.envId,
     el: '#twikoo-container',
     path: `${bookName}-${idx}`,
-    lang: TWIKOO_CONFIG.lang
+    lang: TWIKOO_CONFIG.lang,
+    meta: ['nick']
   }).catch(() => {});
 }
 
@@ -737,12 +754,113 @@ if (readingScroller) {
   }, { passive: true });
 }
 
+// ===== 滚轮阻尼（首页 + 三个列表页）=====
+// 思路：不直接把滚轮位移交给浏览器，而是记下「目标位置」，再让容器每帧朝它逼近一部分。
+// 因为逼近是几何衰减的，所以停下滚轮后还会滑一小段再稳住 —— 这就是阻尼感。
+// 注意首页滚的是文档、列表页滚的是阅读层容器，两者是两个不同的滚动目标，各接一套。
+// 详情页刻意不接（需求只要首页与列表页）。
+const WHEEL_DAMPING = 0.1;   // 每帧逼近比例：越小越黏、滑行越久；越大越跟手
+
+function attachDampedWheel(getScroller, isEnabled) {
+  let target = null;
+  let rafId = null;
+
+  const cancel = () => {
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+    target = null;
+    const el = getScroller();
+    if (el) el.style.scrollBehavior = '';
+  };
+
+  const frame = () => {
+    rafId = null;
+    const el = getScroller();
+    // 关键门控：条件不再成立（例如已从列表页切到详情页）就必须立刻停手，
+    // 否则上一页没跑完的动画会把新页面强行拽向旧位置
+    if (!el || target === null || !isEnabled()) { cancel(); return; }
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (target > max) target = max;          // 内容变短时同步收紧目标
+    const cur = el.scrollTop;
+    const diff = target - cur;
+    if (Math.abs(diff) < 0.5) {
+      el.scrollTop = target;
+      cancel();
+      return;
+    }
+    el.scrollTop = cur + diff * WHEEL_DAMPING;
+    rafId = requestAnimationFrame(frame);
+  };
+
+  window.addEventListener('wheel', event => {
+    if (!isEnabled()) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;      // 横向滚动不管
+    if (event.target && event.target.closest && event.target.closest('.search-panel')) return;  // 搜索面板自己滚
+
+    const el = getScroller();
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return;
+
+    // deltaMode: 0=像素 1=行 2=页，统一换算成像素
+    let dy = event.deltaY;
+    if (event.deltaMode === 1) dy *= 16;
+    else if (event.deltaMode === 2) dy *= el.clientHeight;
+
+    event.preventDefault();
+
+    // 关掉 CSS 的 scroll-behavior:smooth，否则逐帧赋值会被浏览器再平滑一次
+    el.style.scrollBehavior = 'auto';
+
+    const base = (target === null) ? el.scrollTop : target;
+    target = Math.max(0, Math.min(max, base + dy));
+    if (rafId === null) rafId = requestAnimationFrame(frame);
+  }, { passive: false });
+
+  return { cancel };
+}
+
+// 首页
+pageWheel = attachDampedWheel(
+  () => document.scrollingElement || document.documentElement,
+  () => !document.body.classList.contains('reading-open')
+);
+
+// 阅读层：只在「列表页」生效
+if (readingScroller) {
+  readingWheel = attachDampedWheel(
+    () => readingScroller,
+    () => {
+      const list = document.getElementById('articleList');
+      return readingScroller.classList.contains('active')
+        && !!list && list.style.display !== 'none';
+    }
+  );
+}
+
+// 任何页面切换前都要先掐掉残留的阻尼动画
+function cancelDampedScroll() {
+  if (pageWheel) pageWheel.cancel();
+  if (readingWheel) readingWheel.cancel();
+}
+
 // ===== SCROLL REVEAL =====
 const observer = new IntersectionObserver(
   entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
   { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
 );
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ===== 照片拼贴：进入视野后一张张浮现 =====
+const collageEl = document.querySelector('.photo-collage');
+if (collageEl) {
+  collageEl.classList.add('armed');          // 先藏起来，准备浮现
+  const collageObs = new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { collageEl.classList.add('shown'); obs.disconnect(); }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -8% 0px' });
+  collageObs.observe(collageEl);
+}
 
 // ===== PARALLAX =====
 window.addEventListener('scroll', () => {
